@@ -1,0 +1,38 @@
+<?php
+EnableDebugMode(false);	//
+
+$fn = 'flags/my.lic';
+$fn2 = 'flags/the.lic';
+
+if(!empty($_POST['cmd_save']))
+{
+    
+    file_put_contents($fn2, $_POST['lic']);
+    
+    // Clean and save
+    $s = $_POST['lic'];
+    $s = trim(str_replace('--- LICENSE ---', '', $s));
+    file_put_contents($fn, $s);
+    
+    echo "<script>alert('ok');</script>";
+}
+
+$s1 = `/sbin/ifconfig eth0 | grep HWaddr`;
+$s2 = `/bin/ping -c 1 192.168.2.218 -w 1`;		// wait for 1 sec.
+$s3 = `/sbin/arp -vn -i eth0 | grep "192.168.2.218"`;
+
+$s_h = strtoupper(sha1("$s1/$s3"));
+
+$arr_DATA_TO_DUMP['sys_flag'] = $s_h;
+
+// date expire
+$s_data = trim(str_replace('--- LICENSE ---', '', file_get_contents($fn)));
+$json_data = json_decode(base64_decode($s_data), true);
+$arr_DATA_TO_DUMP['date_exp'] = '--';
+if($json_data && !empty($json_data['expire']) && 0 == strcmp($s_h, $json_data['hash'])) 
+{
+	$arr_DATA_TO_DUMP['date_exp'] = $json_data['expire'];
+}
+
+// Load last data, or none
+set_ui_var("co_lic", (is_file($fn2) ? file_get_contents($fn2) : ''));

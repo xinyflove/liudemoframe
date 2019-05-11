@@ -1,0 +1,208 @@
+<!--#include file="header.html" -->
+
+<title>呼叫历史 - 电话通知机器人</title>
+<h3>呼叫历史</h3> 
+
+<style type="text/css">
+	.check_status_5 {display:none;}
+	.check_status_9 {display:none;}
+	.check_status_10 {display:none;}
+
+	.show_0 {display:none;}
+	.show_10 {}
+	.show_60 {display:none;}
+	.show_100 {display:none;}
+
+	.go_100 {display:none;}
+</style>
+
+<div style="margin-left: 8px;">
+
+<form>
+<div style="margin: 10px;">
+	&nbsp; &nbsp;
+	<input type="hidden" name="entry_path" value="[!entry_path]">
+	<input style="margin-left:20px;" name="s" id="search_s" placeholder="号码"><input type="submit" name="cmd_s" value="搜">
+</div>
+</form>
+
+
+
+<script>
+//
+
+var arr_check = {0: '', 10: '未拨通', 60:'已拨通，未通知完', 100: '通知完成' };
+function dealwith_magic()
+{
+	for(var id in arr_check) $("span.check_" + id).html(arr_check[id]);
+}
+
+function document_on_ready()
+{
+	dealwith_magic();
+
+	if('[!s]'.indexOf('!') == -1)
+	{
+		$("#search_s").val('[!s]');
+	}
+}
+
+function id_masked(id1) {document.write(id1.substring(0, id1.length -3));}
+</script>
+
+
+<table class="table" cellspacing="0">
+	<tr class="spec">
+		<th>ID</th>
+		<th>号码</th>
+		<th>开始时间</th>
+		<th>持续（秒）</th>
+		
+		<th>状态</th>
+		
+	</tr>
+
+	<!-- UseTemplete@80000 pagesize=50 param= -->
+	<tr id="line_[.id]" onmouseover="style.backgroundColor='#FF9900'" onmouseout="style.backgroundColor='#FFFFFF'">
+		<td>[.id]</td>
+		<td>[.num_str]</td>
+		<td>[.time_c]</td>
+		<td align="center"><script>if([.time_n]) document.write([.time_n]-[.time_e]);</script></td>
+
+		<td><span id="c_status_[.id]" class="check_[.status_last]"></span>
+			<span class="show_[.status_last]"> / [.status_last_str]</span>
+		</td>
+		
+	</tr>
+	<!-- Wrap@80000 -->
+	<!-- Fill@80000 -->
+	<!-- Null@80000 -->
+	
+	<!-- UseTemplete@80000; -->
+
+	
+</table>
+
+<!-- PageControl -->
+<div style="margin:10px;">
+	<!-- FirstPage -->首页<!-- FirstPage; -->
+	<!-- PageBefore -->上页<!-- PageBefore; -->
+	&nbsp; <strong>[CurrentPage]</strong>/[TotalPages]  &nbsp; 
+	<!-- PageNext -->下页<!-- PageNext; -->
+	<!-- LastPage -->末页<!-- LastPage; -->
+
+	&nbsp; &nbsp; 共 [TotalRecords] 条
+</div>
+<!-- PageControl; -->
+
+
+
+</div>
+
+<script>
+//
+var arr_k = {};
+function item_k(id)
+{
+	s = $('#title_' + id).html();
+	//if(!confirm('确实要删除这个条目？\n\n【' + s + '】')) return;
+	
+	$('#line_' + id).addClass('line_killed');
+	$('#do_k_' + id).hide(); $('#undo_k_' + id).show();
+	
+	// ajax kill wait
+	arr_k[id] = setTimeout("real_k("+id+")", 3000);
+}
+
+function undo_k(id)
+{
+	// remove ajax kill
+	clearTimeout(arr_k[id]);
+
+	delete(arr_k[id]);
+	
+	// undo something
+	$('#line_' + id).removeClass('line_killed');
+	$('#do_k_' + id).show(); $('#undo_k_' + id).hide();
+}
+
+
+function real_k(id) 
+{
+	// do ajax kill
+	delete(arr_k[id]);
+	
+	$.ajax({
+		url: "[____Q]", 
+		data: { "cmd_k": 1, "id": id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        
+		        $('#line_' + id).hide();
+		    }
+		});
+}
+
+function item_refresh(id) 
+{
+	$.ajax({
+		url: "[____Q]", 
+		data: { "cmd_refresh": 1, "id": id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        $("#c_status_" + id).html("缴费完成");
+		    }
+		});
+}
+
+// 
+function submit_check(id) 
+{
+	// do ajax submit
+	$.ajax({
+		url: "[____Q]", 
+		data: { "cmd_audit": 1, "id": id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        
+		        // how to?
+		        $('#do_k_' + id).hide();
+		        $('#c_status_' + id).html(arr_check[5]);
+		    }
+		});
+}
+function submit_check_all(cat_id) 
+{
+	// check all
+	$.ajax({
+		url: "[____Q]", 
+		data: { "cmd_audit_all": 1, "cat_id": cat_id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        
+		        location.reload();
+		    }
+		});
+}
+
+/*
+$(window).bind('beforeunload',function(){ 
+	// delete submit
+	for(id1 in arr_k) real_k(id1);
+
+	//return true;
+});
+*/
+
+</script>
+
+
+<!--#include file="foot.html" -->

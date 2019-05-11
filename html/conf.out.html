@@ -1,0 +1,37 @@
+<!--#include file="header_conf.html" -->
+
+<title>外呼配置 - 电话通知机器人</title>
+<h3>外呼配置</h3>
+
+<br><br>
+<div style="margin-left: 8px;">
+
+<form name="form1" method="post" enctype="multipart/form-data" action="[____Q]">
+    <div>
+        时间段： <input type="text" name="out_time_set" id="out_time_set" size="50" value="" placeholder="0900-2100">
+    </div>
+    <div>
+        最大次数： <input type="text" name="call_max" id="call_max" size="5" value="" placeholder="3">
+    </div>
+    
+    <br><br>
+    
+    <div>
+        <input type="submit" name="cmd_save" value=" 保存 ">
+        </div>
+    
+</form>
+</div>
+
+<script>
+conf = ['', ''];
+// [CONF]
+
+function document_on_ready()
+{
+	$("#out_time_set").val(conf[0]);
+	$("#call_max").val(conf[1]);
+}
+</script>
+
+<!--#include file="foot.html" -->

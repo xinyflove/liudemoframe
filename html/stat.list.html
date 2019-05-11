@@ -1,0 +1,54 @@
+<!--#include file="header.html" -->
+
+<title>对话详情</title>
+<h3>对话详情: [!id]</h3>
+
+<style type="text/css">
+	.vote_0 {display: none;}   /* default value, no vote */
+</style>
+
+<div style="margin-left: 8px;">
+
+<br>
+用户： <strong>[!c]</strong><br>
+<br>
+
+<table class="table" cellspacing="0">
+	<tr class="spec">
+		<th>时间</th>
+		<th>问题</th>
+		<th>回答</th>
+		<th>代码</th>
+		<th>参考信息</th>
+		<th>用户打分</th>
+
+		<th> &nbsp; </th>
+	</tr>
+
+	<!-- UseTemplete@60020 size=0 param= -->
+	<tr id="line_[.id]" onmouseover="style.backgroundColor='#FF9900'" onmouseout="style.backgroundColor='#FFFFFF'">
+		<td>[.time_c]</td>
+		<td>[.q]</td>
+		<td>[.a]</td>
+		<td>[.answer_type]</td>
+		<td>[.ref_idx]</td>
+		<td><span class="vote_[.user_vote]">[.user_vote]</span></td>
+
+		<td> 
+			More
+			
+		</td>
+	</tr>
+	<!-- Wrap@60020 -->
+	<!-- Fill@60020 -->
+	<!-- Null@60020 -->
+	
+	<!-- UseTemplete@60020; -->
+
+	
+</table>
+
+</div>
+
+
+<!--#include file="foot.html" -->

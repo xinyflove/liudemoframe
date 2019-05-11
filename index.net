@@ -1,0 +1,163 @@
+<?php
+include_once("pre_cms.net");
+
+EnableDebugMode(false);	// 
+
+// which module?
+$entry_path = isset($_REQUEST['entry_path']) ? $_REQUEST['entry_path'] : '';
+
+// online? redirect to login page, or menu page
+EnableCart();
+
+
+if('quit' == $entry_path)
+{
+    session_destroy();
+    
+    go_a( 'init.login' );
+}
+
+$arr_open_page = array( 'init.login', 'init.login_do', );
+if(empty($_SESSION['userInfo']['uname']))
+{
+    // do redirect
+    if(!in_array($entry_path, $arr_open_page))
+    {
+    	$_SESSION['go_back_after_login'] = true;
+    	
+    	go_a( 'init.login' );
+    }
+}
+
+if('' == $entry_path)
+{
+    go_a( 'welcome' );
+}
+
+DebugP1("Entry: $entry_path");
+
+// entry path checker
+if(preg_match("|[^0-9_\.a-z]|", $entry_path)) exit;
+
+$arr_DATA_TO_DUMP = array();
+$arr_G_VARS  = array();
+
+// decode of blind transfer
+if(!empty($_REQUEST['_nonsense_']) && intval($_REQUEST['_nonsense_']) < 0)
+{
+	$opt_nonsense = intval($_REQUEST['_nonsense_']);
+	$opt_nonsense = - $opt_nonsense;
+	if(!empty($_SESSION["session_data:$opt_nonsense"]) && is_array($_SESSION["session_data:$opt_nonsense"]))
+	{
+		set_ui_var($_SESSION["session_data:$opt_nonsense"]);
+	}
+}
+
+// some headers
+header('X-Frame-Options: SAMEORIGIN');
+
+define('ONLINE_SECONDS', 1800); // 30 min.
+
+$sTmplFile  = "html/$entry_path.html";
+$fn_mod     = "mod/$entry_path.net";
+
+$ts = time();
+
+if(!is_file($sTmplFile) && !is_file($fn_mod)) exit;
+
+$MyTmpl=new Templete();
+$arr_SQL_LIST = array();
+OpenMyDB();
+
+// buildin area
+$arr_SQL_LIST['sql_80000'] = "SELECT * FROM out_list ORDER BY id";
+
+$arr_SQL_LIST['sql_99999'] = array($_SESSION['userInfo']);
+
+
+if(is_file($fn_mod)) include($fn_mod);
+
+$MyTmpl->usepattern($arr_SQL_LIST);
+CloseMyDB();
+
+// dump data to template
+if(!empty($arr_DATA_TO_DUMP)) foreach($arr_DATA_TO_DUMP as $k=>$v)
+{
+    $MyTmpl->m2(strtoupper($k), "\n$k=" . json_encode($v) . ";\n");
+}
+
+
+set_ui_var('co_online_user', '-');
+
+$fn_status = "flags/sys_status";
+$sys_status = is_file($fn_status) ? file_get_contents($fn_status) : 'green';
+set_ui_var('status', $sys_status);
+
+
+//
+if(!empty($arr_G_VARS)) foreach($arr_G_VARS as $k=>$v)
+{
+	if(is_object($v)) continue;
+	
+	if(is_bool($v))  $v = $v ? 1 : 0;
+	if(is_array($v)) $v = json_encode($v);
+	
+    $MyTmpl->m2("@$k", $v);
+}
+
+$MyTmpl->applyInput();
+$MyTmpl->cleartags();
+$MyTmpl->dump();
+unset($MyTmpl);
+
+
+function go_a( $v, $arr_o = false, $f_random = false )
+{
+	// after login
+	if(!empty($_SESSION['go_back_after_login']))
+	{
+		// Save current info
+		if(!empty($_REQUEST['entry_path']) && !strstr($_REQUEST['entry_path'], 'ajax.'))
+		{
+			$_SESSION['url_after_login'] = $_SERVER['REQUEST_URI'];
+		}
+	}
+	
+    $o = '';
+    if(!empty($arr_o))
+    {
+        // array? string?
+        if(is_array($arr_o)) $o = http_build_query($arr_o);
+        else $o = $arr_o;
+    }
+    
+    if($f_random) GoToURL("index.net?entry_path=$v&nonsense=" . rand() . "&$o");
+    else GoToURL("index.net?entry_path=$v&$o");
+    
+    exit;
+}
+
+function go_b($v, $arr_h, $arr_o = false)
+{
+	// blind transfer
+	// Data to hide: arr_h
+	$r_transfer = rand();
+	if(empty($arr_o)) $arr_o = array('_nonsense_' => -$r_transfer);
+	else $arr_o['_nonsense_'] = -$r_transfer;
+	
+	@session_start();
+	$_SESSION["session_data:$r_transfer"] = $arr_h;
+	$o = http_build_query($arr_o);
+	GoToURL("index.net?entry_path=$v&$o");
+}
+
+function set_ui_var( $k, $v = false )
+{
+	global $arr_G_VARS;
+	
+	if(is_array($k))
+	{
+		foreach($k as $k1 => $v1) $arr_G_VARS[$k1] = $v1;
+	}
+	else $arr_G_VARS[$k] = $v;
+}

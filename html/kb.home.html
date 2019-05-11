@@ -1,0 +1,235 @@
+<!--#include file="header.html" -->
+
+<title>号码清单 - 电话通知机器人</title>
+<h3>号码清单</h3> 
+
+<style type="text/css">
+	.check_status_5 {display:none;}
+	.check_status_9 {display:none;}
+	.check_status_10 {display:none;}
+
+	.show_0 {display:none;}
+	.show_10 {}
+	.show_60 {display:none;}
+	.show_100 {display:none;}
+
+	.go_100 {display:none;}
+</style>
+
+<div style="margin-left: 8px;">
+
+<form>
+<div style="margin: 10px;">
+	<a href="index.net?entry_path=kb.list">全部</a>
+	<a href="index.net?entry_path=kb.list&f_check=0">未开始</a>
+	<a href="index.net?entry_path=kb.list&f_check=10">未拨通</a>
+	<a href="index.net?entry_path=kb.list&f_check=60">未通知到</a>
+	<a href="index.net?entry_path=kb.list&f_check=100">完成</a>
+	
+	&nbsp; &nbsp;
+	<input type="hidden" name="entry_path" value="[!entry_path]">
+	<input style="margin-left:20px;" name="s" id="search_s" placeholder="号码"><input type="submit" name="cmd_s" value="搜">
+
+	&nbsp; &nbsp;
+	<a href="index.net?entry_path=kb.faq_import">批量导入</a>
+
+</div>
+</form>
+
+
+
+<script>
+//
+
+function conv_time(t) {if(0==t) return; var unixTimestamp = new Date( t * 1000); document.write(unixTimestamp.toLocaleString()); }
+
+var arr_check = {0: '', 10: '未拨通', 60:'已拨通，未通知完', 100: '通知完成' };
+function dealwith_magic()
+{
+	for(var id in arr_check) $("span.check_" + id).html(arr_check[id]);
+}
+
+function document_on_ready()
+{
+	dealwith_magic();
+
+	if('[!s]'.indexOf('!') == -1)
+	{
+		$("#search_s").val('[!s]');
+	}
+}
+
+function id_masked(id1) {document.write(id1.substring(0, id1.length -3));}
+</script>
+
+
+<table class="table" cellspacing="0">
+	<tr class="spec">
+		<th>ID</th>
+		<th>号码</th>
+		<th>费用（元）</th>
+		<th>状态</th>
+		<th>时间</th>
+		<th>呼叫次数</th>
+		<th> 操作 </th>
+	</tr>
+
+	<!-- UseTemplete@80000 pagesize=10 param= -->
+	<tr id="line_[.id]" onmouseover="style.backgroundColor='#FF9900'" onmouseout="style.backgroundColor='#FFFFFF'">
+		<td>[.id]</td>
+		<td>[.num_str]</td>
+		<td align="right">[.num_fee]</td>
+
+		<td><span id="c_status_[.id]" class="check_[.status_last]"></span>
+			<span class="show_[.status_last]"> / [.status_last_str]</span>
+		</td>
+		<td><script>conv_time([.time_last]);</script></td>
+
+		<td align="center">[.time_called]</td>
+
+		<td> 
+			<span id="do_k_[.id]">
+				<span onclick="javascript:item_refresh([.id])" class="line_k btn btn-primary reload_[.f_check] go_[.f_going]">缴费完成</span>
+
+
+				&nbsp; &nbsp; 
+
+				<span onclick="javascript:item_k([.id])" class="line_k btn btn-danger">删除</span>
+			</span>
+			
+			<button onclick="javascript:undo_k([.id])" class="line_k hide" id="undo_k_[.id]">撤销删除</button>
+			
+		</td>
+	</tr>
+	<!-- Wrap@80000 -->
+	<!-- Fill@80000 -->
+	<!-- Null@80000 -->
+	
+	<!-- UseTemplete@80000; -->
+
+	
+</table>
+
+<!-- PageControl -->
+<div style="margin:10px;">
+	<!-- FirstPage -->首页<!-- FirstPage; -->
+	<!-- PageBefore -->上页<!-- PageBefore; -->
+	&nbsp; <strong>[CurrentPage]</strong>/[TotalPages]  &nbsp; 
+	<!-- PageNext -->下页<!-- PageNext; -->
+	<!-- LastPage -->末页<!-- LastPage; -->
+
+	&nbsp; &nbsp; 共 [TotalRecords] 条
+</div>
+<!-- PageControl; -->
+
+
+
+</div>
+
+<script>
+//
+var arr_k = {};
+function item_k(id)
+{
+	s = $('#title_' + id).html();
+	//if(!confirm('确实要删除这个条目？\n\n【' + s + '】')) return;
+	
+	$('#line_' + id).addClass('line_killed');
+	$('#do_k_' + id).hide(); $('#undo_k_' + id).show();
+	
+	// ajax kill wait
+	arr_k[id] = setTimeout("real_k("+id+")", 1000);
+}
+
+function undo_k(id)
+{
+	// remove ajax kill
+	clearTimeout(arr_k[id]);
+
+	delete(arr_k[id]);
+	
+	// undo something
+	$('#line_' + id).removeClass('line_killed');
+	$('#do_k_' + id).show(); $('#undo_k_' + id).hide();
+}
+
+
+function real_k(id) 
+{
+	// do ajax kill
+	delete(arr_k[id]);
+	
+	$.ajax({
+		url: "[____Q]", 
+		data: { "cmd_k": 1, "id": id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        
+		        $('#line_' + id).hide();
+		    }
+		});
+}
+
+function item_refresh(id) 
+{
+	$.ajax({
+		url: "[____Q]", 
+		data: { "cmd_refresh": 1, "id": id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        $("#c_status_" + id).html("缴费完成");
+		    }
+		});
+}
+
+// 
+function submit_check(id) 
+{
+	// do ajax submit
+	$.ajax({
+		url: "[____Q]", 
+		data: { "cmd_audit": 1, "id": id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        
+		        // how to?
+		        $('#do_k_' + id).hide();
+		        $('#c_status_' + id).html(arr_check[5]);
+		    }
+		});
+}
+function submit_check_all(cat_id) 
+{
+	// check all
+	$.ajax({
+		url: "[____Q]", 
+		data: { "cmd_audit_all": 1, "cat_id": cat_id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        
+		        location.reload();
+		    }
+		});
+}
+
+/*
+$(window).bind('beforeunload',function(){ 
+	// delete submit
+	for(id1 in arr_k) real_k(id1);
+
+	//return true;
+});
+*/
+
+</script>
+
+
+<!--#include file="foot.html" -->

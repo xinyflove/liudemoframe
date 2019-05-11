@@ -1,0 +1,37 @@
+<?php
+EnableDebugMode(false);	//
+
+$pwd_default = 'demo';
+$f_bad_captcha = false;
+
+$fn_oem_config = 'inc/oem_info.net';
+if(is_file($fn_oem_config))
+{
+	include($fn_oem_config);
+}
+if(!empty($oem_default_passwd)) $pwd_default = $oem_default_passwd;
+
+if(!empty($_POST['upass']))
+{
+    if(strcmp($pwd_default, $_POST['upass']) == 0 )
+    {
+        $_SESSION['userInfo'] = array( 'uname' => 'admin', );
+        
+        // redirect
+        if(!empty($_SESSION['url_after_login']))
+        {
+        	$url_redir = $_SESSION['url_after_login'];
+        	$_SESSION['url_after_login'] = false;
+        	
+        	header( "Location: $url_redir" ); exit;
+        }
+        
+        go_a( 'welcome' );
+    }
+    
+}
+
+$err_t = $f_bad_captcha ? 'bad_password' : 'bad_captcha';
+$MyTmpl->remove("<!-- begin $err_t", " $err_t end -->");
+
+?>

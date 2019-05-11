@@ -1,0 +1,45 @@
+<?php
+EnableDebugMode(false);	//
+
+$id = 0;
+$ts = time();
+
+if(!empty($_POST['id'])) $id = intval($_POST['id']);
+if($id > 0)
+{
+	if(isset($_POST['cmd_k']))
+	{
+		$sql = "DELETE FROM out_list WHERE id=$id";
+		$MyDB->query($sql);
+
+		die('{"r":1}');
+	}
+
+	if(isset($_POST['cmd_refresh']))
+	{
+		// Change status
+		$sql = "UPDATE out_list SET f_status=100,status_last=100,f_going=100 WHERE id=$id";
+		$MyDB->query($sql);
+		
+		die('{"r":1}');
+	}
+
+}
+
+//f_check
+$w_check = '';
+if(isset($_REQUEST['f_check']))
+{
+	$f_check = intval($_REQUEST['f_check']);
+	
+	$w_check = " AND status_last=$f_check";
+}
+
+$arr_SQL_LIST['sql_80000'] = "SELECT * FROM out_list where f_delete=0 $w_check";
+
+if(!empty($_REQUEST['s']))
+{
+	// search
+	$s = addslashes(trim($_REQUEST['s']));
+	$arr_SQL_LIST['sql_80000'] = "SELECT * FROM out_list WHERE num_str LIKE '%$s%' and f_delete=0 $w_check ORDER BY id";
+}

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN">
+<head>	
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" xml:lang="zh-CN" />
+	<meta http-equiv="Content-Language" content="zh-CN" /> 
+	<title>电话通知机器人</title>
+	
+	<link href="images/bootstrap.min.css" rel="stylesheet">
+	<link href="images/simple.css" rel="stylesheet">
+
+	<script type="text/javascript" src="js/jquery.min.js"></script>
+	<script type="text/javascript" src="misc.js"></script>
+
+<style type="text/css">
+.nav-list > li.open {
+            position: relative;
+        }
+
+        .nav-list > li.open .back {
+            display: none;
+        }
+
+        .nav-list > li.open .normal {
+            display: inline-block !important;
+        }
+
+        .nav-list > li.open a {
+            padding-left: 7px;
+        }
+
+        .nav-list > li .submenu > li > a {
+            background: #fff;
+        }
+
+        .nav-list > li .submenu > li a > [class*="fa-"]:first-child {
+            left: 20px;
+        }
+
+        .nav-list > li ul.submenu ul.submenu > li a > [class*="fa-"]:first-child {
+            left: 30px;
+        }
+
+		.nav-list > li {
+			position: relative;
+			display: block;
+			padding: 0;
+			margin: 0;
+			/*
+			border-bottom: 1px solid #3a5da7 !important;
+			border-top: 0 solid #3a5da7 !important;
+			*/
+		}
+
+		.current{
+			text-decoration: none !important;
+			background-color: #f1f6f9 !important;
+			color: #ff5555 !important;
+		}
+
+		.nav-list > li > a {
+			display: block;
+			height: 60px;
+			padding: 0 16px 0 7px;
+			font-size: 18px;
+			line-height: 60px;
+			color: #a1cbff;
+			font-weight: bold;
+			text-decoration: none;
+			text-shadow: none !important;
+			background-color: #0c1e45;
+		}
+
+		.nav > li > a:hover, .nav > li > a:focus {
+			background-color: #f1f6f9;
+			color1: #ff5555 !important;
+		}
+
+
+a { text-decoration:none;}
+a:hover { text-decoration:underline;}
+
+#header {background-color1:lightblue;width:90%;}
+#menu_left {float: left; width:12%; margin:0px; align:center; height:auto; background-color:#eee; border-radius: 3px;}
+#main_body {float:right; width:87%; border: 1px solid #BDBDBD; background-color: #d3e1d9; min-height:500px; }
+
+.menu_ico {width:20px; height:20px;}
+.menu_item { cursor:pointer; }
+
+.table
+{
+	width: 80%;
+	padding: 0;
+	margin: 0;
+}
+
+th {
+	font: bold 12px "Trebuchet MS", Verdana, Arial, Helvetica, sans-serif;
+	color: #4f6b72;
+	border-right: 1px solid #C1DAD7;
+	border-bottom: 1px solid #C1DAD7;
+	border-top: 1px solid #C1DAD7;
+	letter-spacing: 2px;
+	/* text-transform: uppercase; */
+	text-align: center;
+	padding: 6px 6px 6px 12px;
+	background: #CAE8EA no-repeat;
+}
+td {
+	border-right: 1px solid #C1DAD7;
+	border-bottom: 1px solid #C1DAD7;
+	background: #fff;
+	font-size:14px;
+	padding: 6px 6px 6px 12px;
+	color: #4f6b72;
+}
+td.alt {
+	background: #F5FAFA;
+	color: #797268;
+}
+th.spec,td.spec {
+	border-left: 1px solid #C1DAD7;
+}
+/*---------for IE 5.x bug*/
+html>body td{ font-size:14px;}
+tr.select th,tr.select td
+{
+	background-color:#CAE8EA;
+	color: #797268;
+}
+
+.line_k { cursor:pointer; }
+/* .hide {display:none;} */
+.line_killed {text-decoration:line-through;}
+.sub {margin:12px; border:2px;}
+
+.no_show {display:none;}
+
+</style>
+
+<script>
+//
+function menu_click(o)
+{
+    var t = o.getAttribute('opt');
+    location.href = "?entry_path=" + t;
+}
+
+var system_status_color = ['green', 'yellow', 'red', 'green'];
+function system_status_update()
+{
+	var i_number = Math.ceil(Math.random()*1000 + 200);
+	var i_color  = 0;   //Math.ceil(Math.random()*4);
+	var s_color  = system_status_color[i_color];
+
+	//
+	$.ajax({
+		url: "?entry_path=ajax.update", 
+		dataType: "json", 
+		type: "GET",
+		success: function(d) {
+		        //console.log(d);
+
+		        i_number = d[0];
+		        s_color  = d[1];
+		        f_g_run  = d[2];
+		        
+		        //console.log('New color: ' + s_color);
+				$('#status_show').css({'background-color': s_color});
+				
+				if(f_g_run) { $("#j_cmd_start").hide(); $("#j_cmd_stop").show(); }
+				else  { $("#j_cmd_stop").hide(); $("#j_cmd_start").show(); }
+				
+				if(d[4])
+				{
+					var s = d[4];
+					if(s.indexOf('*')==0) s = s.replace('*', '拨号： ');
+					if(s.indexOf('@')==0) s = s.replace('@', '拨号： ');
+					
+					$("#j_status").html(s);
+				}
+				
+		    }
+		});
+}
+
+function cmd_g_click(id)
+{
+	$.ajax({
+		url: "?entry_path=ajax.cmd", 
+		data: { "cmd": id },
+		dataType: "json", 
+		type: "POST",
+		success: function(d) {
+		        console.log(d);
+		        location.reload();
+		    }
+		});
+}
+
+$(document).ready(function(){
+	$(".menu_entry").each(function(){
+		var j = $(this).attr('id');
+		j = j.replace('entry_', '');
+
+		var j2 = $(this).attr('e');
+	
+		// index of.
+		id2 = 'entry_path=' + j + '.';
+		if(location.href.indexOf(id2)>0) 
+		{
+			$('#entry_' + j).css( { "text-decoration":"none !important", "background-color":"#f1f6f9", "color":"#ff5555"} );
+			$('#entry_' + j).html("<h3 style='background-color:#eee;cursor:pointer;' e='"+j2+"'>" + $('#entry_' + j).text() + " </h3>");
+			if($('#sub_' + j)) $('#sub_' + j).show();
+		}
+	});
+
+	$("H3").each(function(){
+		$(this).click(function(o){
+			//console.log(o.target);
+			var j2 = $(o.target).attr('e');
+			if(j2) location.href = "?entry_path=" + j2;
+		});
+	});
+	
+	// j_cmd_start j_cmd_stop
+	//$("#j_cmd_start").hide(); $("#j_cmd_stop").hide();
+	
+	$(".global_cmd").click(function(){
+		console.log( $(this)[0].id );
+		cmd_g_click($(this)[0].id);
+	});
+
+	//setTimeout ('system_status_update()',  3000);
+	system_status_update();
+	setInterval('system_status_update()', 3000);
+
+	typeof document_on_ready === "function" ? document_on_ready() : false;
+});
+
+String.prototype.trim=function()
+{
+     return this.replace(/(^\s*)|(\s*$)/g, '');
+}
+
+</script>
+</head>
+
+<body style="min-width:900px;">
+
+<!--
+<div id="loading"><i class="loadingicon"></i><span>正在加载...</span></div>
+<div id="right-tools-wrapper">
+    
+</div>
+-->
+
+<div class="navbar navbar-default">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <a href="./" class="navbar-brand" style="min-width: 200px; padding-top:25px;"><img class="img-responsive center-block" src="images/logo.jpg" width="170" height="85"></a>
+        </div>
+
+        <div class="navbar-collapse collapse" id="navbar-main">
+            <ul class="nav-list navbar-nav navbar-right simplewind-nav">
+                
+                <li class="light-blue dropdown" style="border-left:none; padding-top: 20px;">
+                    <span id="status_show" style="background-color:[@status]; width:80px;height:20px; border-radius:3px;margin-right: 20px;"> &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</span>
+                    
+					<span class="user-info" style="font-size:14px;" style="margin-left:20px;margin-right:20px;">
+						<img src="images/user.jpg" width="32" height="32">
+						&nbsp;
+						管理员
+						&nbsp; 
+					</span>
+                    <ul class="user-menu pull-right dropdown-yellow dropdown-caret dropdown-closer">
+                    </ul>
+                </li>
+				<li class="light-blue" style="border-left:none;padding-top:20px;">
+                    <span onclick="menu_click(this)" opt="quit" class="menu_item"><img width="30" height="30" src="images/quit2.png" ></span>
+                </li> 
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div id="menu_left" class="nav nav-list"> <!-- nav-wrapper  -->
+	<li class="menu_entry" id="entry_kb" e="kb.home"><a href="?entry_path=kb.home">号码清单</a></li>
+	
+	<li class="menu_entry" id="entry_stat" e="stat.home"><a href="?entry_path=stat.home">统计</a></li>
+
+	<li class="menu_entry" id="entry_history" e="history.home"><a href="?entry_path=history.home">历史记录</a></li>
+
+	<li class="menu_entry" id="entry_conf" e="conf.home"><a href="?entry_path=conf.home">设置</a></li>
+		<div id="sub_conf" class="sub hide">
+			<a href="?entry_path=conf.lic">授权</a> <br>
+		    <a href="?entry_path=conf.out"> 外呼设置 </a> <br>
+		    
+		    
+		</div>
+	
+	
+	<div style="background-color:white;text-align:center;">
+		<br><br>
+		
+		<span class="global_cmd menu_item no_show" id="j_cmd_start">
+			<div>没有运行</div><br>
+			<img src="images/icon_start.jpg"><br><span style="font-size:18px;">启动</span>
+			</span>
+		<span class="global_cmd menu_item no_show" id="j_cmd_stop">
+			<div style="color:green">正在运行...</div><br>
+			<img src="images/icon_stop.jpg"><br><span style="font-size:18px;">停止</span>
+			</span>
+		<br><br>
+		<span id="j_status" style="color:red;">...</span>
+	</div>
+	
+</div>
+
+<div id="main_body" style="margin:1px;">
+
+

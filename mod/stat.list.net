@@ -1,0 +1,10 @@
+<?php
+EnableDebugMode(false);	//
+
+$talk_id = intval($_REQUEST['talk_id']);
+if(empty($talk_id)) exit;
+
+
+$arr_SQL_LIST['sql_60020'] = "SELECT * FROM robot_log.talk_list WHERE talk_id=$talk_id";
+
+

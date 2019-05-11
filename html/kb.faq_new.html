@@ -1,0 +1,60 @@
+<!--#include file="header.html" -->
+
+<title> 知识库： [!cat_name]</title>
+<h3> 知识库： [!cat_name]</h3>
+
+<style type="text/css">
+	.ch_block {margin-left: 30px;}
+
+</style>
+<script>
+var ch_list = {};
+
+function remove_ch(id1)
+{
+	$("#ch_info_" + id1).remove();
+	delete(ch_list[id1]);
+}
+function add_ch(o) {
+	var e=$(o).attr('e');
+	
+	arr_e = e.split('|');
+	var id1=arr_e[0]; var ch = arr_e[1];
+	if(ch_list[id1]) return false;
+
+	ch_list[id1] = id1;
+
+	var s = "<div class='ch_block' id='ch_info_"+id1+"'><div>"+ch+" &nbsp; &nbsp; <span onclick='remove_ch("+id1+")' style='cursor:pointer;'>删</span></div>"
+	  + "<textarea cols='100' rows='3' name=ch["+id1+"] placeholder='"+ch+"的答案'></textarea></div>";
+	$("#more_ch").append(s);
+
+	return false;
+}
+
+</script>
+
+<div style="margin-left: 8px;">
+
+<form name="form1" method="post" enctype="multipart/form-data" action="[____Q]">
+    
+    <pre>
+
+    问题： <input name="f_title" size="60" placeholder="早上好">
+    
+    回答（默认渠道）： 
+    <textarea name="f_answer" cols="120" rows="6" placeholder="您好，欢迎使用智能机器人"></textarea>
+    渠道：<!-- UseTemplete@80100 size=0 param= --> <button e="[.id]|[.ch_name]" onclick="return add_ch(this)">[.ch_name]</button> <!-- Wrap@80100 --> <!-- Fill@80100 --> <!-- Null@80100 --> <!-- UseTemplete@80100; --> 
+    <div id="more_ch"></div>
+	
+    指令： <input name="f_cmd" size="60" placeholder="可选，给微信、设备、实体机器人的隐藏命令">
+
+        <input type="submit" name="cmd_ok" value="保存">
+    </pre>
+
+
+</form>
+
+</div>
+
+
+<!--#include file="foot.html" -->

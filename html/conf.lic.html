@@ -1,0 +1,50 @@
+<!--#include file="header_conf.html" -->
+
+<title>授权信息 - 电话通知机器人</title>
+<h3>授权信息</h3>
+
+<br><br>
+<div style="margin-left: 8px;">
+
+<form name="form1" method="post" enctype="multipart/form-data" action="[____Q]">
+    <div>
+        <textarea cols="60" rows="10" name="lic">[@co_lic]</textarea>
+    </div>
+    
+    <br><br>
+    
+    <div>系统指纹： <span id="sys_flag" style="color:red;"></span></div>
+    <div id="o_date_exp" style="display:none;">过期时间： <span id="date_exp" style="color:blue;"></span></div>
+    
+    <br>
+    
+    <div>
+        <input type="submit" name="cmd_save" value=" 保存 ">
+        </div>
+    
+</form>
+
+<hr>
+<pre>
+授权信息将在系统运行时不定期检查，请务必保证其正确性。
+</pre>
+
+</div>
+
+<script>
+var sys_flag = '';
+// [SYS_FLAG]
+
+var date_exp = '';
+// [DATE_EXP]
+
+function document_on_ready()
+{
+	$("#sys_flag").html(sys_flag);
+	
+	if(date_exp.length>8) { $("#date_exp").html(date_exp); $("#o_date_exp").show(); }
+	
+}
+</script>
+
+<!--#include file="foot.html" -->

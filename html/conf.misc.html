@@ -1,0 +1,49 @@
+<!--#include file="header_conf.html" -->
+
+<title>其它配置</title>
+<h3>其它配置</h3>
+
+<br><br>
+<div style="margin-left: 8px;">
+
+<form name="form1" method="post" enctype="multipart/form-data" action="[____Q]">
+    <div>
+        重新分词： 
+        <input type="radio" name="split" id="split_0" value="0" checked="checked"><label for="split_0">不重新分词</label> 
+        <input type="radio" name="split" id="split_1" value="1"><label for="split_1">每次都重新分词</label>  
+    </div>
+    
+    <div>
+        导入的知识自动通过审核： 
+        <input type="radio" name="kbbatchskip" id="kbbatchskip_0" value="0" checked="checked"><label for="kbbatchskip_0">必须再次审核</label> 
+        <input type="radio" name="kbbatchskip" id="kbbatchskip_1" value="1"><label for="kbbatchskip_1">跳过审核</label>  
+    </div>
+
+    <div>
+        扩展问接口数据跳过审核： 
+        <input type="radio" name="kbextskip" id="kbextskip_0" value="0" checked="checked"><label for="kbextskip_0">必须再次审核</label> 
+        <input type="radio" name="kbextskip" id="kbextskip_1" value="1"><label for="kbextskip_1">跳过审核</label>  
+    </div>
+
+    <br><br>
+    
+    <div>
+        <input type="submit" name="cmd_save" value=" 保存 ">
+    </div>
+    
+</form>
+</div>
+
+<script type="text/javascript">
+    var conf_data = {};
+    //[CONF_DATA]
+	
+	for(var k in conf_data)
+	{
+		if(conf_data[k]) $("#"+k+"_" + conf_data[k]).attr('checked', true);	
+	}
+    
+
+</script>
+
+<!--#include file="foot.html" -->

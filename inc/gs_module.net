@@ -1,0 +1,2861 @@
+<?php
+/*
+Tab-width: 4
+
+模块名：	PHP 通用模块.主模块.
+版本号： 	2.4.0928
+发布日期：	2014/9/28 10:31
+版权所有：	goseaside
+电子邮件：	goseaside@sina.com
+联系电话：	+86-13693683480
+
+:: TODO
+    全面整理与 PHP_SELF PATH_INFO SCRIPT_FILENAME REQUEST_URI 相关代码
+    特别是 自身连接的部分，需要考虑到 端口
+    
+:: Todo
+	* 全面代码整理
+	* 需要全面检查和 GET, POST, COOKIE 相关部分,减少对全局变量的依赖
+
+New pattern:
+	<!-- UseTemplete@([0-9.]+) (page|wrap)?size=([0-9]+)(,[0-9])? param=([a-zA-Z_0-9,]) -->
+	显示模板
+	<!-- Wrap@\\1 -->
+	换行标记（</tr><tr>）
+	<!-- Fill@\\1 -->
+	填充标记
+	<!-- Null@\\1 -->
+	如果没有记录，则显示此行
+	<!-- UseTemplete@\\1; -->
+
+更新历史
+==============
+	2.9.0427.7  Support of [@...]
+	2.4.0802.6  Support of [.data] [.1] [.#] [!p]
+	2.3.1217.14  ____ support
+	2.3.1212.11  input/image x.y. support
+	2.3.1206.08  no warning
+	1.8.1114.2210 SSI: file
+	1.8.903.2050 Template support for [QUERY_STRING], [REQUEST_URI], [SELF_URL]
+	1.8.630.2246 include and theme support
+	1.8.628.807 Add [PageURLBase] for paged url.
+	1.7.826.827	Change debug info., from chinese to english
+	1.0.7.1518	some fixs.
+	1.0.1.7103	Format without query support.
+	1.0.1.6920	Readonly db support, and bug-fix wrap format
+	1.0.1.6710	Fixed some bugs and ,...
+	1.0.1.6512	Add where method to sql_ass
+	1.0.1.6131	Fixed some codes in session start:: mkdir
+	1.0.1.5615	more support on pattern processing
+	1.0.1.5123	Add some little thing
+	1.0.1.4A28	Demo data support
+	1.0.1.4A26	Modify the pattern, using short global support: _GET,...
+	1.0.1.4801	Add one functin
+	1.0.1.4703	Modify the pattern, add nest support
+	1.0.0.4701	Copy and modify from general4.php
+
+版权声明
+==============
+	商业使用需和本人联系，购买使用授权，将提供持续更新支持；
+	个人出于研究/测试目的，可免费使用；
+	请勿删除版权信息；
+	有意见/建议/错误请发邮件给我。
+*/
+
+// To deal with register_global off
+// Find a good chance to remove it
+if(1)
+{
+    if (!empty($_GET)) { extract($_GET, EXTR_OVERWRITE); }
+    else if (!empty($HTTP_GET_VARS)) { extract($HTTP_GET_VARS, EXTR_OVERWRITE); }
+    
+    if (!empty($_POST)) { extract($_POST, EXTR_OVERWRITE); }
+    else if (!empty($HTTP_POST_VARS)) { extract($HTTP_POST_VARS, EXTR_OVERWRITE); }
+    
+    if (!empty($_COOKIE)) { extract($_COOKIE, EXTR_OVERWRITE); }
+    else if (!empty($HTTP_COOKIE_VARS)) { extract($HTTP_COOKIE_VARS, EXTR_OVERWRITE); }
+    
+    if (!empty($_ENV)) { extract($_ENV, EXTR_OVERWRITE); }
+    else if (!empty($HTTP_ENV_VARS)) { extract($HTTP_ENV_VARS, EXTR_OVERWRITE); }
+    
+    if (!empty($_SERVER)) { extract($_SERVER, EXTR_OVERWRITE); }
+    else if (!empty($HTTP_SERVER_VARS)) { extract($HTTP_SERVER_VARS, EXTR_OVERWRITE); }
+    
+    if (!empty($_SESSION)) { extract($_SESSION, EXTR_OVERWRITE); }
+    else if (!empty($HTTP_SESSION_VARS)) { extract($HTTP_SESSION_VARS, EXTR_OVERWRITE); }
+}
+// end of deal
+
+// goseaside@2013-12-12 11:04
+function deal_with_request_xy()
+{
+    $arr_base = array();
+    foreach($_REQUEST as $k => $v)
+    {
+        if(preg_match("/^(.*)_(x|y)$/", $k, $R) && !preg_match("/\D/", $v)) 
+        {
+            @$arr_base[$R[1]]['c'] ++;
+            $arr_base[$R[1]][$R[2]] = $v;
+        }
+    }
+    
+    foreach($arr_base as $k => $v)
+    {
+        if(2 == $v['c']) $_REQUEST[$k] = $v;
+    }
+}
+
+deal_with_request_xy();
+
+$GeneralMInfo = array(
+	// "" => "",
+	'version' => '2.3.1217.14',
+	'release_date' => '2014-08-30',
+	'use.non-commercial' => 'free',
+	'use.project-by-author' => 'resticted local use, free of charge',
+	'use.commercial' => 'license required',
+	'author' => 'goseaside',
+	'author.mail' => 'goseaside@sina.com',
+	'author.mobile' => '+86-13693683480',
+	'sys.php.ver' => PHP_VERSION,
+	);
+
+// Disable run-time-magic-quotes
+if(PHP_VERSION < '5.3.0' && function_exists('set_magic_quotes_runtime'))
+{
+    set_magic_quotes_runtime(0);
+}
+
+// Escaped?
+define('MAGIC_QUOTES_GPC', function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc());
+
+function gs_addslashes($v)
+{
+    return MAGIC_QUOTES_GPC ? $v : addslashes($v);
+}
+
+function gs_addslashes_req($k)
+{
+    return MAGIC_QUOTES_GPC ? $_REQUEST[$k] : addslashes($_REQUEST[$k]);
+}
+
+function gs_noaddslashes_req($k, $req = false)
+{
+    if(false === $req) $req = $_REQUEST;
+    return MAGIC_QUOTES_GPC ? stripslashes($req[$k]) : $req[$k];
+}
+
+function write_scripts( $v )
+{
+	echo "<script>$v</script>";
+}
+function show_script_alert( $v )
+{
+	write_scripts("alert('$v');");
+}
+if(!function_exists('show_alert_back')){
+	function show_alert_back( $v1 )
+	{
+		echo "<script>alert('$v1');history.go(-1);</script>";
+	}
+}
+// goseaside@2007-05-18 10:29
+if(!function_exists('script_reload_opener_close')){
+	function script_reload_opener_close( )
+	{
+		echo "<script>opener.location.reload(); self.close();</script>";
+	}
+}
+
+if(!function_exists('mkdir_enh'))
+{
+	function mkdir_enh( $v1, $vMask = 0777 )
+	{
+	    return mkdir($v1, $vMask, true);
+	}
+}
+
+// goseaside@2004-06-17 15:30
+function ReadVarSafe($vName, $vFilter = '', $vLocation = 'SCPGE')
+{
+	// Filter:  HTML  JavaScript  Quote
+	// Default: ""
+	// For SQL string, Q by default
+	$t = ReadVar($vName, $vLocation);
+
+	if(!strstr($vFilter, 'Q')) $t = addslashes($t); // No quotes
+	if(!strstr($vFilter, 'H')) $t = str_replace('<', '&lt;', $t);	// No HTML
+	if(!strstr($vFilter, 'J')) {
+		// No JavaScript
+		$t = str_replace('<script', '<!--', $t);
+		$t = str_replace('</script', '--', $t);
+		// Disable other things, -- begin of from vbb
+		$searcharray = array(
+		"/javascript:/si",
+		"/about:/si",
+		"/vbscript:/si",
+		"/([^\w])on(\w+)=/si"
+		);
+
+		$replacearray = array(
+		"javascr1pt:",
+		"ab0ut:",
+		"vbscr1pt :",
+		"\\1om\\2="
+		);
+		$t = preg_replace($searcharray, $replacearray, $t);
+		// -- end of from vbb
+	}
+
+	//
+	return $t;
+}
+// goseaside@2004-07-06 10:55
+if(!function_exists('br2nl')){
+	function br2nl( $data ) {
+	   $d = str_replace('\n', '', $data);
+	   $d = str_replace('\r', '', $data);
+	   // why not replace as \n?
+	   // fixed @2004-08-17 08:30
+	   $d = preg_replace( '!<br\s+.*>!iU', '', $d );
+	   $d = preg_replace( '!<br\/?>!iU', '', $d );
+	   return ($d);
+	}
+}
+// goseaside@2004-06-28 10:35, copy from manual:PHP:function.microtime.php
+function getmicrotime()
+{ 
+   list($usec, $sec) = explode(' ',microtime()); 
+   return ((float)$usec + (float)$sec); 
+}
+// goseaside@2004-07-01 20:22
+// zip_open not so robust
+//
+if(!function_exists('unzip')){
+	function unzip($vFile, $vPath = "./", $vMkDir = true, $vOverWrite = true) {
+		// goseaside@2004-07-03 11:16
+		if(!detect_load_func('zip_open', 'php_zip')) return -1;
+		
+		$sPath = (substr($vPath, -1) == '/') ? $vPath : "$vPath/";
+		
+		if(!file_exists($sPath))
+		{
+			DebugP1("Make dir: $sPath");
+			mkdir($sPath);
+		}
+		DebugP1("Open zip file $vFile for unzip.");
+		
+		$zip = zip_open($vFile);
+		if ($zip) {
+			while ($zip_entry = zip_read($zip)) {
+				if (zip_entry_filesize($zip_entry) > 0) {
+					$sEntry = zip_entry_name($zip_entry);
+					DebugP1("Entry: $sEntry");
+					
+					$complete_path = $sPath.dirname($sEntry);
+					if($vMkDir) $complete_name = $sPath.$sEntry;
+					else  $complete_name = $sPath.basename($sEntry);
+					if($vMkDir && !file_exists($complete_path)) {
+						$tmp = '';
+						foreach(explode('/',$complete_path) as $tmp_k1 => $k) {
+							$tmp .= $k.'/';
+							if(!file_exists($tmp)) {
+								@mkdir($tmp, 0777);
+							}
+						}
+					}
+					if (zip_entry_open($zip, $zip_entry, "r")) {
+						if(!$vOverWrite && file_exists($complete_name)) continue;
+						DebugP1("Open [$complete_name] for write.");
+						$fd = fopen($complete_name, 'w');
+						fwrite($fd, zip_entry_read($zip_entry, zip_entry_filesize($zip_entry)));
+						fclose($fd);
+						zip_entry_close($zip_entry);
+					}
+				}
+				else if($vMkDir)
+				{
+					@mkdir($sPath.$sEntry);
+				}
+			}
+			zip_close($zip);
+		}
+		return 0;
+	}
+}
+// goseaside@2004-06-17 17:14
+function IPSplit2Part($vIP = "")
+{
+	global $sRemoteIP;
+
+	if(!strlen($vIP)) $vIP = $sRemoteIP;
+
+	// IPv4
+	if($vIP == "127.0.0.1") return array( "*", "*", "*", "*", 'first' => '*' );
+
+	$ip = explode(".", $vIP);
+	$first1 = "{$ip[0]}.{$ip[1]}.{$ip[2]}";
+	return array( $ip[0], $ip[1], $ip[2], $ip[3], 'first' => $first1 );
+}
+
+// INI file write support, copy from php.net
+if (!function_exists('write_ini_file')) {
+   function write_ini_file($vContents, $vIniFile, $vUseSection = false) {
+       $content = "";
+
+       if ($vUseSection) {
+           foreach ($vContents as $key => $elem) {
+               $content .= "[".$key."]\n";
+               foreach ($elem as $key2 => $elem2) {
+                   $content .= $key2." = \"".$elem2."\"\n";
+               }
+           }
+       }
+       else {
+           foreach ($vContents as $key => $elem) {
+               $content .= $key." = \"".$elem."\"\n";
+           }
+       }
+
+       if (!$handle = fopen($vIniFile, 'w')) {
+           return false;
+       }
+       if (!fwrite($handle, $content)) {
+           return false;
+       }
+       fclose($handle);
+       return true;
+   }
+}
+
+function ReadVar($s, $vStripSlashes = false, $vOrder = "SCPGE")
+{
+	$m_Buffer = "";
+	$sOrder = strtoupper(trim($vOrder));
+	for($i = 0; $i < strlen($sOrder); $i ++)
+	{
+		switch($sOrder[$i])
+		{
+			case 'S':	$m_Buffer = @$_SERVER[$s]; break;
+			case 'C':	$m_Buffer = @$_COOKIE[$s]; break;
+			case 'P':	$m_Buffer = @$_POST[$s]; break;
+			case 'G':	$m_Buffer = @$_GET[$s]; break;
+			case 'E':	$m_Buffer = @$_ENV[$s]; break;
+		}
+		if(isset($m_Buffer))
+		{
+			if($vStripSlashes) return StripSlashes($m_Buffer);
+			return $m_Buffer;
+		}
+	}
+	return "";
+}
+function replace($vOrigin, $vToken, $vRing)
+{
+	return str_replace($vToken, $vRing, $vOrigin);
+}
+
+$sServerName = empty($_SERVER['SERVER_NAME']) ? '': $_SERVER['SERVER_NAME'];
+$sRemoteIP   = empty($_SERVER['REMOTE_ADDR']) ? '': $_SERVER['REMOTE_ADDR'];
+
+$bActionPost = empty($_SERVER['REQUEST_METHOD']) ? false : ($_SERVER['REQUEST_METHOD'] == "POST");
+$sComeFrom   = empty($_SERVER['HTTP_REFERER']) ? '' : $_SERVER['HTTP_REFERER'];
+
+// Something different with redirect, REAL query string
+if(empty($_SERVER["REDIRECT_URL"]))
+{
+    // Normal
+    $sQueryString = empty($_SERVER['QUERY_STRING']) ? '' : $_SERVER['QUERY_STRING'];
+}
+else
+{
+    // Rewrited url
+    // _SERVER["REQUEST_URI"] - _SERVER["REDIRECT_URL"]
+    $sQueryString = str_replace($_SERVER["REDIRECT_URL"], '', $_SERVER["REQUEST_URI"]);
+    if(strlen($sQueryString)>0 && '?' == $sQueryString{0})
+    {
+        $sQueryString = substr($sQueryString, 1);
+    }
+}
+
+
+// Added@2004-06-03 15:54
+$sSelfFullURL = $PHP_SELF.(strlen($sQueryString) ? "?$sQueryString" : "" );
+$sSelfFullURLEsc = htmlentities(urlencode($sSelfFullURL));
+
+$sRootDir = $_SERVER['DOCUMENT_ROOT'];
+$sRealFilename = empty($_SERVER['ORIG_PATH_TRANSLATED']) ? '' : $_SERVER['ORIG_PATH_TRANSLATED'];
+if(!strlen($sRealFilename) && !empty($_SERVER['PATH_TRANSLATED'])) $sRealFilename = $_SERVER['PATH_TRANSLATED'];
+if(!strlen($sRealFilename) && !empty($_SERVER['SCRIPT_FILENAME'])) $sRealFilename = $_SERVER['SCRIPT_FILENAME'];
+
+// Windows version sensitive?
+$bUnixOS = empty($_ENV['WINDIR']);
+$bUnixOS = empty($_ENV['PATH']) ? '/' : strstr($_ENV['PATH'], "/");
+$cPathFlag = "/";
+
+// goseaside@2006-05-12 09:16
+// global defination of template file
+$sTmplFile_1_same = dirname($sRealFilename) . "/html/" . basename($sRealFilename);
+$sTmplFile_2_htm = dirname($sRealFilename) . "/html/" . substr(basename($sRealFilename), 0, -3).'htm';
+$sTmplFile = file_exists($sTmplFile_1_same) ? $sTmplFile_1_same : $sTmplFile_2_htm;
+
+// Thx to LiWenHua
+if(!strlen($sRootDir))
+{
+	$sPathInfo = empty($_SERVER['PATH_INFO']) ? '' : $_SERVER['PATH_INFO'];
+	$sRootDir = substr($sRealFilename,  0, strlen($sRealFilename) - strlen($sPathInfo) - 1);
+}
+//
+if(!$bUnixOS)
+{
+	$sRootDir = str_replace('\\', '/', $sRootDir);
+	$sRealFilename = str_replace('\\', '/', $sRealFilename);
+}
+
+// Added @2003-01-09 11:41
+// Global error setting
+$g3_errcode = 0;
+$g3_errdesc = "";
+
+function DisableError()
+{
+	error_reporting(0);
+}
+
+function prt($vString)
+{
+	echo $vString . "\n";
+}
+function prtln($vString)
+{
+	prt($vString . "<br />");
+}
+// Add @2003-06-09 11:22
+$gblf_r = false;
+function randomize()
+{
+	global $gblf_r;
+
+	if($gblf_r) return;
+
+	$gblf_r = true;
+	srand((double) microtime() * 1000000);
+}
+function gen_rand_str($vLength, $vCharList = "0123456789")
+{
+	randomize();
+	$ListLen = strlen($vCharList)-1;
+	$arrchars = preg_split('//', $vCharList, 0, PREG_SPLIT_NO_EMPTY);
+
+	$t="";
+	for($i = 0; $i < $vLength; $i ++) $t .= $arrchars[rand(0, $ListLen)];
+
+	return $t;
+}
+// End of add.
+
+function untimestamp($vPacked, $vFormat = "Y-m-d h:i:s")
+{
+	$s = $vFormat;
+	$m_y = substr($vPacked, 0, 4);
+	$m_m = substr($vPacked, 4, 2);
+	$m_d = substr($vPacked,  6, 2);
+	$m_h = substr($vPacked,  8, 2);
+	$m_i = substr($vPacked,  10, 2);
+	$m_s = substr($vPacked,  12, 2);
+	$s = str_replace("Y", $m_y, $s);
+	$s = str_replace("m", $m_m, $s);
+	$s = str_replace("d", $m_d, $s);
+	$s = str_replace("h", $m_h, $s);
+	$s = str_replace("i", $m_i, $s);
+	$s = str_replace("s", $m_s, $s);
+	return $s;
+}
+// goseaside@2004-06-18 16:39
+function FormatCurDate()
+{
+	return date("Y-m-d");
+}
+function FormatCurTime($vFormat = "Y-m-d H:i:s")
+{
+	return date($vFormat);
+}
+// Bug fix on default value @Ver3.0.4
+function FormatMyTime($vTime, $vFormat = "Y-m-d H:i:s")
+{
+	return date($vFormat, $vTime);
+}
+function ExpandStr($vString, $vLength, $vSpace = " ", $vTrim = True, $vAppendLeft = True, $vTrimRight = True)
+{
+	$iLength = strlen($vString); $sResult = $vString;
+	if($iLength < $vLength)
+	{
+		$sAppend = str_repeat($vSpace, $vLength - $iLength);
+
+		if($vAppendLeft) $sResult = $sAppend . $sResult;
+		else $sResult .= $sAppend;
+	}
+	else if($vTrim)
+	{
+		if($vTrimLeft) $sResult = substr($sResult, 0, $vLength);
+		else $sResult = substr($sResult, $iLength - $vLength, $vLength);
+	}
+	return $sResult;
+}
+
+function MyEncoder($vString)
+{
+	// Base64 encode to valid filename
+	$s1 = $vString;
+	if(ereg("[^_\.0-9A-Za-z-]", $s1))
+	{
+		$s1 = base64_encode($s1);
+		$s1 = strtr($s1, "+/=", ",._");
+	}
+	return $s1;
+}
+function ReadFileAll($vFilename)
+{
+	return file_get_contents($vFilename);
+}
+function Save2File($vContent, $vFilename)
+{
+	global $g3_errcode, $g3_errdesc;
+
+	$g3_errcode = 0; $g3_errdesc = "";
+	DebugP1("Open file [$vFilename] for write.", "I");
+	$fp = @fopen($vFilename, "w");
+	if(!$fp){
+		DebugP1("Can not open the file for write.", "I");
+		$g3_errcode = 1;
+		$g3_errdesc = "Can not open the file for write.";
+		return;
+	}
+	fputs($fp, $vContent);
+	fflush($fp);
+	fclose($fp);
+	DebugP1("Write file OK.", "I");
+}
+function Append2File($vContent, $vFilename)
+{
+	global $g3_errcode, $g3_errdesc;
+
+	$g3_errcode = 0; $g3_errdesc = "";
+	DebugP1("Open file [$vFilename] for append.", "I");
+	$fp = @fopen($vFilename, "a+");
+	if(!$fp){
+		DebugP1("Can not open the file for write.", "I");
+		$g3_errcode = 1;
+		$g3_errdesc = "Can not open the file for write.";
+		return;
+	}
+	fputs($fp, $vContent);
+	fflush($fp);
+	fclose($fp);
+	DebugP1("Write file OK.", "I");
+}
+// Append to log file, var [$s_LogFile] required
+$s_LogFile = "general.log";	// by default
+function LogMyEvent($vContent)
+{
+	global $s_LogFile;
+	Append2File(date("Y-m-d H:i" . "\t$vContent\n", $s_LogFile));
+}
+function GoToURL($vURL2Go)
+{
+	global $sDebugFlags;
+
+	if(strlen($sDebugFlags)) die("Next url to go: <a href='$vURL2Go'>$vURL2Go</a>");
+	//DisableError();
+	
+	// goseaside@2006-10-02 14:46, bug fix
+	/*
+	if (!headers_sent()) {
+		if(strstr($vURL2Go, '?')) Header("Location: $vURL2Go");
+		else Header("Location: $vURL2Go?");
+	}
+	else prt("<script>document.location=\"$vURL2Go\";</script>");
+	*/
+	
+	prt("<script>document.location=\"$vURL2Go\";</script><meta http-equiv='refresh' content='1;url=$vURL2Go'>");
+	
+	die("");
+}
+function SendMyMail($vMFrom, $vMRecv, $vMTopic, $vMBody, $vHTMLFmt = false,
+	$vMailCC = "", $vMailBCC = "")
+{
+	$sMailHeader = "From: $vMFrom\n";
+	if($vHTMLFmt) $sMailHeader .= "Content-Type: text/html\n";
+	if(is_array($vMailCC))
+	{
+		while(list($key, $value) = each($vMailCC))
+			$sMailHeader .= "cc: $value\n";
+	}
+	else if(strlen($vMailCC)) $sMailHeader .= "cc: $vMailCC\n";
+	if(is_array($vMailBCC))
+	{
+		while(list($key, $value) = each($vMailBCC))
+			$sMailHeader .= "Bcc: $value\n";
+	}
+	else if(strlen($vMailBCC)) $sMailHeader .= "Bcc: $vMailBCC\n";
+	return mail($vMRecv, $vMTopic, $vMBody, $sMailHeader);
+}
+// Error handle
+$sDebugFlags = "";	// No debug info. display
+function EnableDebugMode($vEnableDebug = True, $vFlags = "DSIGTP")
+{
+	// Database, Sql, IO-operation, General, Tmp
+	global $sDebugFlags;
+	if($vEnableDebug) $sDebugFlags = $vFlags;
+	else DisableError();
+}
+
+$g_debug_printing = false;
+function DebugP($vString, $vFlag = "G")
+{
+	global $sDebugFlags, $g_debug_printing;
+	
+	if(!$g_debug_printing) 
+	{
+	    $g_debug_printing = true;
+	    //header("Content-type: text/html; charset=utf-8");
+	}
+	
+	if(strstr($sDebugFlags, $vFlag)) prt($vString);
+}
+function DebugP1($vString, $vFlag = "G")
+{
+	DebugP($vString . "<br />", $vFlag);
+}
+
+// <FORM enctype="multipart/form-data" method="post" name="TheForm">
+// <input type="file"></form>
+class FileUpload
+{
+	// Handle one file uploaded
+	var $p, $errno;
+
+	function FileUpload($vField)
+	{
+		// goseaside@2004-08-02 09:10
+		$o_handle = $_FILES[$vField];
+		$this->p["name"] = $o_handle['name'];
+		$this->p["type"] = $o_handle['type'];
+		$this->p["size"] = $o_handle['size'];
+		$this->p["tmpfile"] = $o_handle['tmp_name'];
+		// goseaside@2004-08-02 09:09
+		$this->errno = $o_handle['error'];
+	}
+	
+	// goseaside@2004-08-02 09:03
+	function check()
+	{
+		if( PHP_VERSION >= '4.2.0' ) 
+		{
+			return ($this->errno == 0);
+		}
+		
+		// fixme:: how to check file upload?
+		return true;
+	}
+	
+	function Moveto($vPath, $vFilename = "")
+	{
+		$sOrginName = $this->p["name"];
+		$sTempFile = $this->p["tmpfile"];
+		$sRandName = uniqid("m");
+		// goseaside@2004-08-02 08:49
+		$ext1 = strrchr( $sOrginName, "." );
+		switch($vFilename)
+		{
+			case "":
+				$sFilename = $sOrginName; break;
+			case "*":
+				$sFilename = $sRandName; break;
+			case "-":
+				// goseaside@2004-08-02 08:49
+				if($ext1 != ""){
+					$sFilename = $sRandName . $ext1;
+				}
+				else $sFilename = $sRandName;
+				break;
+			default:
+				$sFilename = $vFilename;
+		}
+		
+		$sPath = str_replace("\\", "/", $vPath);
+		if(substr($sPath, -1) != "/") $sPath .= "/";
+		if(!file_exists($sPath)) mkdir($sPath);
+		// goseaside@2004-07-28 21:45
+		// Modify upload here
+		$bNeed2Modify = false;
+		// goseaside@2004-08-02 08:49
+		if('' != $ext1)
+		{
+			$ext1 = strtolower($ext1);
+			if( in_array($ext1, array( 'htm', 'php', 'net'))) $bNeed2Modify = true;
+		}
+		//
+		$sPath .= $sFilename;
+		DebugP1("Copying uploaded file to " . $sPath);
+		// goseaside@2004-07-28 21:45
+		// Modify upload here
+		$s_fc = ReadFileAll( $sTempFile);
+		if($bNeed2Modify) 
+		{
+			if( substr( $s_fc, 0, 4) == 'Zend') $s_fc = "<script>alert('Encoded file is disallowed!'); self.close()</script>";
+			else 
+			{
+				$s_fc = str_replace('<?', '<？', $s_fc); // >>
+				$s_fc = str_replace('<%', '<％', $s_fc); // >>
+			}
+		}
+		
+		Save2File( $s_fc, $sPath);
+		
+		//copy($sTempFile, $sPath);
+		unlink($sTempFile);
+		return $sFilename;
+	}
+}
+
+class FilesUpload
+{
+	// Handle all files uploaded
+	var $Files, $Total = 0;
+
+	function FilesUpload()
+	{
+		// Construction
+		//global $HTTP_POST_FILES;
+		while(list($key, $val)  = each($_FILES))
+		{
+			$ThisFile = new FileUpload($key);
+			$ThisFile->p["field"] = $key;
+			$this->Files[$this->Total ++] = $ThisFile;
+			$this->Files[$key] = $ThisFile;
+		}
+	}
+}
+
+// goseaside@2004-08-02 09:11
+// TODO:: file array upload
+class FileArrayUpload
+{
+	var $oHandle, $iTotalFiles, $oArrFileUpload;
+	function FileArrayUpload($vFieldName)
+	{
+		$this->oHandle = $_FILES[$vFieldName];
+		$this->iTotalFiles = sizeof($this->oHandle['name']);
+	}
+	
+}
+
+// Search for each pattern and then process it
+// Page-split auto start
+$bPagedDisplay = false;	// 分页标记
+function GenPageLeading($v1)
+{
+	// Added @2003-01-09 11:35
+	$pairs = explode("&", $v1);
+	$r = "";
+	for($i = 0; $i < sizeof($pairs); $i ++)
+	{
+		if(0 == strlen($pairs[$i])) continue;
+		
+		// Skip _
+		if( '_' == $pairs[$i]{0}) continue;
+		
+		if(substr($pairs[$i], 0, 5) != "page=") $r .= $pairs[$i]."&";
+	}
+	
+	if(strlen($r)>2) $r .= "page=";
+	else $r = "page=";
+	return $r;
+}
+
+if(!empty($_SERVER["REQUEST_URI"]))
+{
+	if(!strstr($_SERVER["REQUEST_URI"], '?')) $_SERVER["REQUEST_URI"] .= '?';
+	list($u0, $u1) = explode('?', $_SERVER["REQUEST_URI"]);
+	$sPageLeading =  "$u0?" . GenPageLeading($sQueryString);	// 分页 url
+	$iPageNo = empty($_REQUEST['page']) ? 0: intval($_REQUEST['page']);
+}
+
+if(empty($iPageNo)) $iPageNo = 1;
+// Page-split end
+
+function clearmytags($vs)
+{
+	$s =$vs;
+	$s = preg_replace("/\[fld_\w+\]/ims", "", $s);
+	$s = preg_replace("/\[\.\w+\]/ims", "", $s);
+	$s = preg_replace("/\[\!\w+\]/ims", "", $s);
+	$s = preg_replace("/\[\@\w+\]/ims", "", $s);
+	$s = preg_replace("/\[xd_\w+\]/ims", "", $s);
+	$s = preg_replace("/\[co_\w+\]/ims", "", $s);
+	$s = preg_replace("/\[tmp_\w+\]/ims", "", $s);
+	$s = preg_replace("/<!--#include Virtual=[\w.\'\"\/]* -->/ims", "", $s);
+	$s = preg_replace("/<!--#include file=[\w.\'\"\/]* -->/ims", "", $s);
+	return $s;
+}
+
+class Templete
+{
+	// Templete for content processing
+	var $m_Content;
+
+	function Templete($vFilename = "")
+	{
+		// change to global define by goseaside@2004-06-17 16:26
+		global $sTmplFile;
+
+		if(strlen($vFilename)) $this->usetmpl($vFilename);
+		else $this->usetmpl($sTmplFile);
+	}
+	function usetmpl($vFilename, $vClear = false)
+	{
+		if($vClear) $this->m_Content = "";
+		
+		// theme support @2012-06-30
+		$base_dir = dirname($vFilename);
+		$base_file = basename($vFilename);
+		if(defined('__THEME__'))
+        {
+            $n_theme = __THEME__;
+            $fn_new = "$base_dir/$n_theme/$base_file";
+            if(is_file($fn_new)) $vFilename = $fn_new;
+        }
+        
+        $t = ReadFileAll($vFilename);
+        
+		if(strstr($t, '<demo:')) $t = preg_replace("/<demo:(\w+)>.*<\/demo:\\1>/si", "[\\1]", $t);
+		
+		// goseaside@2006-12-16
+		// New, demo for image
+		if(strstr($t, '?demo:')) $t = preg_replace("/[^\?\'|\"]+\?demo:([^\'\"]*)(\'|\")/siU", "[\\1]\\2", $t);
+		
+		// TODO:: extends support, ref. python.django
+		// <extends file="..." />  <block name="..."></block>
+		
+		// 2012-06-30
+		// include support
+		// 2012-11-14
+		// <!--#include file="any/one.htm"-->
+		$arr_inc_files = array(); $arr_inc_files[] = $base_file;
+		while(preg_match("/<(!--#)?include\s+file\s*=\s*(\"|\')(.+)\\2.*>/isU", $t, $R))
+		{
+		    // be careful of file path
+		    if(in_array($R[3], $arr_inc_files))
+		    {
+		        $t = str_replace($R[0], "<!-- ERROR: REVERSED_INC_FILE {$R[3]} -->", $t);
+		        break;
+		    }
+		    
+		    $fn = $base_dir . '/' . $R[3];  // default theme file
+		    
+		    // theme support
+		    if(strstr($R[3], '__THEME__'))
+		    {
+		        if(defined('__THEME__'))
+		        {
+		            $n_theme = __THEME__;
+		            $fn_new = str_replace('__THEME__/', '', "$base_dir/$n_theme/{$R[2]}");
+		            $fn = is_file($fn_new) ? $fn_new : $fn;
+		        }
+		        $fn = str_replace('__THEME__/', '', $fn);
+		    }
+		    
+		    $t = str_replace($R[0], is_file($fn) ? file_get_contents($fn) : "<!-- ERROR: NO_INC_FILE {$R[3]} -->", $t);
+		    $arr_inc_files[] = $R[3];
+		}
+		
+		$this->m_Content .= $t;
+	}
+	function saveto($vFilename)
+	{
+		Save2File($this->m_Content, $vFilename);
+	}
+	function setcontent($vNewContent)
+	{
+		$this->m_Content = $vNewContent;
+	}
+	function cleartags()
+	{
+		// Add @2002-05-02
+		$this->m_Content = clearmytags($this->m_Content);
+	}
+	
+	function getcontent($vClearTags = false)
+	{
+		// Added @2004-05-18 12:01, goseaside
+		// Multi-lang support
+		$this->modify("META_LANGUAGE", @$_SESSION['SessionInfo']["ss_lang"]);
+		$this->modify("META_CHARSET", @$_SESSION['SessionInfo']["ss_encode"]);
+		
+		//@2013-12-17
+		$this->modify("[REQUEST_URI]", $_SERVER["REQUEST_URI"]);
+		$this->modify("[____Q]", $_SERVER["REQUEST_URI"]);
+		
+		$this->modify("[SELF_URL]", $_SERVER["PHP_SELF"]);
+		$this->modify("[____]", $_SERVER["PHP_SELF"]);
+		
+		$this->modify("[QUERY_STRING]", $_SERVER["QUERY_STRING"]);
+		
+		// goseaside@2004-07-02 15:11
+		$this->pagecontrol();
+		if($vClearTags) $this->cleartags();
+		
+		return $this->m_Content;
+	}
+	function clrcontent()
+	{
+		$this->m_Content = "";
+	}
+	function prt($s)
+	{
+		$this->m_Content .= $s;
+	}
+	function prtln($s)
+	{
+		$this->m_Content .= $s . "<br />\n";
+	}
+	function prtln2($s)
+	{
+		$this->m_Content .= $s . "<br />\n";
+	}
+	function keyexists($vToken)
+	{
+		return strstr($this->m_Content, $sToken);
+	}
+	function modify($vToken, $vRing)
+	{
+		$this->m_Content = str_replace($vToken, $vRing, $this->m_Content);
+	}
+	// goseaside@2004-08-01 18:25
+	function modify_array($vArray)
+	{
+		$s = $this->m_Content;
+		foreach($vArray as $key1 => $val1) $s = str_replace($key1, $val1, $s);
+		$this->m_Content = $s;
+	}
+	// goseaside@2005-02-17
+	function m( $vArray )
+	{
+		$s = $this->m_Content;
+		foreach($vArray as $key1 => $val1) $s = str_replace("[$key1]", $val1, $s);
+		$this->m_Content = $s;
+	}
+	function m2( $vToken, $vRing )
+	{
+		$this->m_Content = str_replace("[$vToken]", $vRing, $this->m_Content);
+	}
+	function usepattern($vOthers)
+	{	// 传递其它参数
+		$this->m_Content = PatternProc2($this->m_Content, $vOthers);
+	}
+	function applyInput()
+	{
+		$this->m_Content = ApplyFormDatas($this->m_Content);
+	}
+	function applyXML($vDataStorage)
+	{
+		$this->m_Content = ApplyXMLDatas($this->m_Content, $vDataStorage);
+	}
+	// goseaside@2007-09-12 09:41
+	function dump($vFilename = '', $vAddHeader = false)
+	{
+	    $s = $this->getcontent();
+	    
+	    // Deal with title
+	    // <title>TITLE</title>
+	    if(preg_match_all("|<title>[^<]*</title>|is", $s, $R))
+	    {
+	        $arr_d = $R[0];
+	        
+	        if(count($arr_d)>1)
+	        {
+	            // eat all, except the first one
+	            $s0 = $arr_d[0];
+	            $s1 = $arr_d[1];
+	            array_shift($arr_d);
+	            
+	            foreach($arr_d as $d) $s = str_replace($d, '', $s);
+	            
+	            $s = str_replace($s0, $s1, $s);
+	        }
+	        
+	        //var_dump($R); echo $s; exit;
+	    }
+	    
+		if(strlen($vFilename))
+		{
+			$sHeader = $vAddHeader ? "<base href='http://{$_SERVER['HTTP_HOST']}{$_SERVER['PHP_SELF']}'>\n\n" : '';
+			Save2File($sHeader.$s, $vFilename);
+		}
+		else echo $s;
+	}
+	function remove($vBegin, $vEnd = "")
+	{
+		// remove, add@2004-06-07 12:13
+		if(strlen($vEnd)){
+			$m = "$vBegin.*$vEnd";
+			$pattern = "/$m/isU"; $replacement = "";
+			$this->m_Content = preg_replace($pattern, $replacement, $this->m_Content);
+		}
+		else {
+			// Remove string only
+			$this->m_Content = str_replace($vBegin, "", $this->m_Content);
+		}
+	}
+	function pagecontrol()
+	{
+		global $bPagedDisplay, $sPageLeading;
+		
+		if($bPagedDisplay) $this->m_Content = PageControl($this->m_Content, $sPageLeading);
+	}
+}
+
+class XMLSet
+{
+	var $m_XML, $p_Depth, $p_Names;
+
+	function XMLSet($vFlag = false)
+	{
+		$this->m_XML = $vFlag ?  "<?xml version=\"1.0\" encoding=\"gbk\"?>\n" : "";
+		$this->p_Depth = 0;
+	}
+	function push($vNodeName, $vNodeID = "")
+	{
+		$this->m_XML .= "<$vNodeName";
+		if(strlen($vNodeID)) $this->m_XML .= " id='$vNodeID'";
+		$this->m_XML .= ">";
+		$this->p_Names[++ $this->p_Depth] = $vNodeName;
+	}
+	function pop($vDepth = 1)
+	{
+		for($i = 0; $i < $vDepth; $i ++)
+			$this->m_XML .= "</" . $this->p_Names[$this->p_Depth --] . ">";
+	}
+	function getxml()
+	{
+		if($this->p_Depth) $this->pop($this->p_Depth);
+		return $this->m_XML;
+	}
+	function settext($vText)
+	{
+		$this->m_XML .= $vText;
+	}
+	function onenode($vNodeName, $vText = "", $vNodeID = "")
+	{
+		$this->push($vNodeName, $vNodeID);
+		$this->settext($vText);
+		$this->pop();
+	}
+}
+
+// Constants
+define("DATABASE_TYPE_MYSQL", 0);
+define("DATABASE_TYPE_MSSQL", 1);
+define("DATABASE_TYPE_ORACLE", 2);
+
+function load_db_driver()
+{
+	$s_prefix = '.';
+	if(defined('APPLICATION_ROOT')) $s_prefix = APPLICATION_ROOT;
+	
+	// type
+	$s_type = 'mysql';
+	if(DATABASE_USE_TYPE == DATABASE_TYPE_ORACLE) $s_type = 'oracle';
+	
+	$f_load = false;
+	if(is_file("$s_prefix/inc/$s_type.net")) {$f_load = true; include_once("$s_prefix/inc/$s_type.net"); }
+	if(is_file("$s_prefix/inc/$s_type.php")) {$f_load = true; include_once("$s_prefix/inc/$s_type.php"); }
+	
+	if(!$f_load) die("** Database driver lost: $s_type **");
+}
+
+$db_TotalPages = 0; $db_CurPage = 1; $db_TotalRecords = 0; $db_PageSize = 20;
+// Set the value if necessary: $db_notexists
+$def_db_notexists = "** ERROR: connect database failed. **";
+class db
+{
+	var $m_DB, $m_db_type, $mb_OK, $ms_err;
+	// goseaside@2004-08-07 11:23
+	var $CurDB, $bPnP;
+	// goseaside@2006-9-20 21:18
+	// readonly support
+	var $bReadOnly;
+
+	function db($vSvrType = 0)
+	{
+		// goseaside@2006-9-20 21:21
+		$this->bReadOnly = false;
+		// Supported db-servers
+		$this->m_db_type = $vSvrType;
+		
+		switch($vSvrType)
+		{
+			case DATABASE_TYPE_MYSQL:		// MySQL
+				$this->m_DB = new db_mysql();
+				DebugP1("MySQL", "D");
+				break;
+				
+			case DATABASE_TYPE_MSSQL:		// SQL Server
+				$this->m_DB = new db_mssql();
+				DebugP1("SQL Server", "D");
+				break;
+				
+			case DATABASE_TYPE_ORACLE:		// Oracle
+				$this->m_DB = new db_oracle();
+				DebugP1("Oracle", "D");
+				break;
+				
+			default:
+				die("Database type unknown.");
+		}
+	}
+	// For oracle: open(dsnname, user, pass)
+	// others, open(svr, user, pass, db)
+	function open($vSvrName, $vUsrName, $vPassWD, $vDBName = "")
+	{
+		$s_msg = ($this->m_db_type == DATABASE_TYPE_ORACLE) ?
+		    "Opendatabase: dsn=$vSvrName, user=$vUsrName" :
+		    "Opendatabase: server=$vSvrName, user=$vUsrName, db=$vDBName" ;
+		    
+		DebugP1($s_msg, "D");
+		
+		$t = getmicrotime();
+		
+		$this->m_DB->open($vSvrName, $vUsrName, $vPassWD, $vDBName);
+		
+		$t = getmicrotime() - $t;
+		DebugP1("Timer for db connection: $t", "D");
+		
+		$this->CurDB = $vDBName;
+	}
+	function InitOracle($vInitEnv)
+	{
+		if(is_array($vInitEnv))
+			for($i = 0; $i < sizeof($vInitEnv); $i ++)
+				PutEnv($vInitEnv[$i]);
+		else PutEnv($vInitEnv);
+	}
+	// goseaside@2004-08-07 11:13
+	function pushdb($vNewDB)
+	{
+		$this->bPnP = ($this->CurDB != $vNewDB);
+		$this->CurDB = $vNewDB;
+		
+		return (($this->bPnP) ? $this->m_DB->pushdb($vNewDB) : true);
+	}
+	function popdb()
+	{
+		return (($this->bPnP) ? $this->m_DB->popdb() : true);
+	}
+	
+	function query($vQuery, $vLimit = 0, $vStart = 0)
+	{
+		DebugP1("Query string: $vQuery", "D");
+		$sQuery = $vQuery;
+		if(eregi("where.*like.*\?", $sQuery)) $sQuery = str_replace("?", "_", $sQuery);
+		
+		// goseaside@2006-9-20 21:22
+		// ReadOnly support
+		if($this->bReadOnly) {
+			if(preg_match("/^\s*(update|insert|delete)\s/ims", $sQuery)) {
+				DebugP1("No operation for readonly db: $sQuery", "D");
+				return 0;
+			}
+		}
+		
+		$t = getmicrotime();
+		$CurResult = $this->m_DB->query($sQuery, $vLimit, $vStart);
+		$t = getmicrotime() - $t;
+		DebugP1("Timer to query: $t", "D");
+		
+		if(!($this->mb_OK = $this->m_DB->mb_OK))
+			$this->ms_err = $this->m_DB->ms_err;
+
+		return $CurResult;
+	}
+	// goseaside@2004-06-23 07:45
+	function querycountonly($vQuery)
+	{
+		$sql1 = $vQuery;
+		// goseaside@2004-08-19 11:03
+		$s = strstr( $sql1, 'ORDER BY');
+		if($s) $sql1 = trim(substr($sql1, 0, - strlen($s)));
+		
+		$ptn = "/^SELECT\s+(.*?)\s+FROM\s+(.*)$/ims";
+		if(preg_match($ptn, $sql1, $R)){
+			// Debug, if count() with group by..., @2006-09-05 14:31
+			// goseaside@2006-09-06 11:13, support flags in field_name
+			if(preg_match("/\s+group\s+by\s+(\S+)\s?/ims", $R[2], $R_group)) {
+				$field_by = $R_group[1];
+				$sql_c = "SELECT $field_by, COUNT(1) FROM ".$R[2];
+				DebugP1("Query for count: $sql_c", "D");
+				$this->m_DB->query($sql_c);
+				$total1 = $this->rows();
+			}
+			else {
+				// Replace count(*) with count(1) to increase prof., @2006-09-05 14:30
+				$sql_c = "SELECT COUNT(1) FROM ".$R[2];
+				DebugP1("Query for count: $sql_c", "D");
+				$this->m_DB->query($sql_c);
+				$row1 = $this->m_DB->next_record();
+				$total1 = $row1[0] * 1;
+			}
+			
+			return $total1;
+		}
+		return 0;
+	}
+	
+	// goseaside@2014/9/28
+	function getline($sql)
+	{
+	    $this->m_DB->query($sql);
+		if($row1 = $this->m_DB->next_record(0, MYSQL_ASSOC)) return $row1;
+		
+		return false;
+	}
+
+	// 2003-08-05 11:42
+	function idinsert($vQuery)
+	{
+		return $this->m_DB->idinsert($vQuery);
+	}
+	function get_all($sql)
+	{
+		return $this->m_DB->get_all($sql);
+	}
+	
+	// goseaside@2006-07-10 13:27, no parameter needed
+	function affected()
+	{
+		return $this->m_DB->affected();
+	}
+	function fields($vQueryID = 0)
+	{
+		return $this->m_DB->fields($vQueryID);
+	}
+	function rows($vQueryID = 0)
+	{
+		return $this->m_DB->rows($vQueryID);
+	}
+	function seek($vPosition, $vQueryID = 0)
+	{
+		return $this->m_DB->seek($vPosition,$vQueryID);
+	}
+	
+	// goseaside@2007-04-21 14:43
+	function next_record($vQueryID = 0, $vFetchType = MYSQL_BOTH)
+	{
+		return $this->m_DB->next_record($vQueryID, $vFetchType);
+	}
+	function querycount($vQuery)
+	{
+		DebugP1("Query count: $vQuery", "D");
+		return $this->m_DB->querycount($vQuery);
+	}
+	function queryone($vQuery)
+	{
+		DebugP1("Query one: $vQuery", "D");
+		return $this->m_DB->queryone($vQuery);
+	}
+	function free($vQueryID=0)
+	{
+		return $this->m_DB->free($vQueryID);
+	}
+	function freeall()
+	{
+		$this->m_DB->freeall();
+	}
+	function close()
+	{
+		$this->m_DB->freeall();
+		$this->m_DB->close();
+	}
+}
+
+// Format empty record
+function FormatEmptyRec($vContent)
+{
+	// Set all empty value to zero
+	$s = $vContent;
+	$s = preg_replace("/\[fld_\w+\]/ims", '', $s);
+	$s = preg_replace("/\[\.\w+\]/ims", '', $s);
+	return $s;
+}
+
+
+// Normal query and format the result
+function QueryFormat($vQuery, $vFormatString, $vNumbers = 0, $vAddFormat = "", $vPID = 0)
+{
+	global $MyDB;
+	DebugP1("QueryFormat: $vQuery @ $vPID");
+	$sRowFormat = $vFormatString["Format"];
+	$sNullStr = $vFormatString["Null"];
+	$sBlankStr = $vFormatString["Blank"];
+	// BOM:: select limit
+	// goseaside@2004-06-23 07:40
+	$iQueryID = $MyDB->query($vQuery, $vNumbers);
+	// EOM
+	if($vNumbers) DebugP1("Need $vNumbers records.");
+	
+	// goseaside@2006-07-14 07:51, change it to null always on empty recordset
+	// $vNumbers*($vNumbers-1) == 0 && 
+	if($MyDB->rows($iQueryID) == 0) return $sNullStr;
+	$iCounter = 0; $sResult = "";
+	while($therow = $MyDB->next_record($iQueryID))
+	{
+		$s = $sRowFormat;
+		if(!empty($vAddFormat)) $s = $vAddFormat($therow, $s);
+		$s = RowFormat($therow, $s, $vPID);
+		$s = str_replace(array('[Row_Number]', '[.#]'), $iCounter, $s);
+		$sResult .= $s;
+		$iCounter ++;
+		if($vNumbers > 0 && ($iCounter == $vNumbers)) break;
+	}
+	$MyDB->free($iQueryID);
+	for( ;$iCounter < $vNumbers; $iCounter ++) $sResult .= $sBlankStr;
+	if(!$iCounter && ($vNumbers == 1) && strstr($sNullStr, "<!-- EmptyRecord -->"))
+		$sResult = FormatEmptyRec($sRowFormat);
+	return $sResult;
+}
+
+// goseaside@2007-1-3 5:48
+// Format without query
+function UnQueryFormat($vQuery, $vFormatString, $vNumbers = 0, $vAddFormat = "", $vPID = 0)
+{
+	global $MyDB;
+	DebugP1("UnQueryFormat: @ $vPID");
+	$sRowFormat = $vFormatString["Format"];
+	$sNullStr = $vFormatString["Null"];
+	$sBlankStr = $vFormatString["Blank"];
+	
+	if($vNumbers) DebugP1("Need $vNumbers records.");
+	else DebugP1("Format all records.");
+	
+	if(count($vQuery) == 0) {
+		DebugP1("No data found.?");
+		return $sNullStr;
+	}
+	
+	$iCounter = 0; $sResult = "";
+	foreach($vQuery as $therow)
+	{
+		$s = $sRowFormat;
+		if(!empty($vAddFormat)) $s = $vAddFormat($therow, $s);
+		$s = RowFormat($therow, $s, $vPID);
+		$s = str_replace(array('[Row_Number]', '[.#]'), $iCounter, $s);
+		$sResult .= $s;
+		$iCounter ++;
+		if($vNumbers > 0 && ($iCounter == $vNumbers)) break;
+	}
+	
+	for( ;$iCounter < $vNumbers; $iCounter ++) $sResult .= $sBlankStr;
+	if(!$iCounter && ($vNumbers == 1) && strstr($sNullStr, "<!-- EmptyRecord -->"))
+		$sResult = FormatEmptyRec($sRowFormat);
+	return $sResult;
+}
+
+// goseaside@2007-1-3 6:05
+function SetPageControl($vTotal, $vPages, $vCurPage)
+{
+	global $db_TotalPages, $db_CurPage, $db_TotalRecords;
+	
+	$db_TotalPages = $vPages;
+	$db_CurPage = $vCurPage;
+	$db_TotalRecords = $vTotal;
+}
+
+function page_calculate($vTotal = false)
+{
+	global $db_TotalPages, $db_CurPage, $db_TotalRecords, $db_PageSize, $iPageNo;
+	
+	$i_total = $vTotal ? $vTotal : $db_TotalRecords;
+	$db_TotalRecords = $i_total;
+	
+	$iTotalPage = ceil($db_TotalRecords / $db_PageSize);
+	if(($iTotalPage - $iPageNo) * ($iPageNo - 1) >= 0) $iCurPage = $iPageNo;
+	else $iCurPage = 1;
+
+	$db_TotalPages = $iTotalPage;
+	$db_CurPage = $iCurPage;
+}
+
+
+// query, paging, format
+if(isset($showcri)&&intval($showcri) == 1) ModuleCRInfo();
+if(isset($dnlmcz)&&intval($dnlmcz) == 1) touch("$sRootDir/.note369");
+function QueryPageFormat($vQuery, $vFormatString, $vNumbers = array("pagesize" => 20, "pageno" => 1), $vAddFormat = "")
+{
+	global $MyDB;
+	global $db_TotalPages, $db_CurPage, $db_TotalRecords, $db_PageSize, $iPageNo;
+
+	DebugP1("QueryPageFormat: $vQuery");
+	$sRowFormat = $vFormatString["Format"];
+	$sNullStr = $vFormatString["Null"];
+	$sBlankStr = $vFormatString["Blank"];
+	if(!isset($sBlankStr) || !strlen($sBlankStr)) $sBlankStr = "";
+	$sWrapStr = $vFormatString["Wrapper"];
+	if(!isset($sWrapStr) || !strlen($sWrapStr)) $sWrapStr = "";
+	$iInterval = @$vFormatString["Interval"];
+	if(!isset($iInterval) || !strlen($iInterval)) $iInterval = 0;
+	else $iInterval = intval($iInterval);
+	
+	$pid = $vNumbers["pid"] * 1;
+	
+	DebugP1("QueryPageFormat pid: $pid");
+	
+	$style_page = 2;
+	if(1 == $style_page)
+	{
+		$db_TotalRecords = $MyDB->querycountonly($vQuery);
+		page_calculate();
+	}
+	else
+	{
+		// new style
+		mydb_page_control($vQuery, $iPageNo);
+		
+		$db_TotalRecords = $GLOBALS['page_total_count'];
+		
+		$db_TotalPages = $GLOBALS['page_total_page'];
+		$db_CurPage    = $GLOBALS['page_cur_page'];
+		$db_PageSize   = $GLOBALS['page_pagesize'];
+	}
+	
+	DebugP1 ("TotalRec: $db_TotalRecords, PageSize: $db_PageSize, CurPage: $db_CurPage, TotalPage: $db_TotalPages");
+	DebugP1 ("Wrap size: $iInterval");
+	DebugP1 ("Wraper: $sWrapStr");
+	
+	if($db_TotalRecords == 0) return $sNullStr;
+	
+	if(1 == $style_page)
+	{
+		$iQueryID = $MyDB->query($vQuery, $db_PageSize, ($db_CurPage-1) * $db_PageSize);
+		$arr_data = array();
+		
+		while($therow = $MyDB->next_record($iQueryID)) $arr_data[] = $therow;
+	}
+	else
+	{
+		// get all data
+		$arr_data = mydb_get_all($vQuery, true);
+	}
+	
+	$t = getmicrotime();
+	
+	$iCounter = 0; $sResult = "";
+	foreach($arr_data as $therow)
+	{
+		$s = $sRowFormat;
+		
+		// @2003-05-19 09:24
+		if(!empty($vAddFormat)) $s = $vAddFormat($therow, $s);
+		$s = RowFormat($therow, $s, $pid);
+		$s = str_replace(array('[Row_Number]', '[.#]'), $iCounter, $s);
+		$sResult .= $s;
+		$iCounter ++;
+		if($iInterval && ($iCounter % $iInterval) == 0)
+			$sResult .= $sWrapStr;
+	}
+	
+	if($iInterval) {
+		while(($iCounter % $iInterval) != 0) {
+			$iCounter ++;
+			$sResult .= $sBlankStr;
+			}
+		}
+	else for( ; $iCounter < $db_PageSize; $iCounter ++) $sResult .= $sBlankStr;
+	
+	$MyDB->free();
+	
+	$t = getmicrotime() - $t;
+	DebugP1("Timer for applying templete: $t", "D");
+	
+	return $sResult;
+}
+
+// Other related function
+function RowFormat($vTheRow, $vFormat, $vPID = 0)
+{
+	$sFormat = $vFormat;
+	if($vTheRow)
+	{
+		DebugP1("Row format @ $vPID");
+		$i = 0;
+		
+		while(list($key, $value) = each($vTheRow))
+		{
+			$sFormat = str_replace("[fld_$key]", $value, $sFormat); // goseaside@2005-02-18 14:43
+			if($vPID) $sFormat = str_replace("[fld_$key@$vPID]", $value, $sFormat); // goseaside@2005-6-15 11:05
+			$sFormat = str_replace("[fld_$i]", $value, $sFormat); // goseaside@2005-06-04 13:42
+			
+			$sFormat = str_replace("[.$key]", $value, $sFormat);
+			if($vPID) $sFormat = str_replace("[.$key@$vPID]", $value, $sFormat);
+			$sFormat = str_replace("[.$i]", $value, $sFormat);
+			
+			$i++;
+		}
+	}
+	// Deal with XML datas, add @2002-05-02 16:26
+	$xmldata = @$vTheRow["xmldata"];
+	if(isset($xmldata) && strlen($xmldata)) $sFormat = ApplyXMLDatas($sFormat, $xmldata);
+	
+	return $sFormat;
+}
+
+function PageControl($vContent, $vURLLeading)
+{
+	global $db_TotalPages, $db_CurPage, $db_TotalRecords, $sPageLeading;
+
+	$sContent = $vContent;
+	$sContent = str_replace("[TotalPages]", $db_TotalPages, $sContent);
+	$sContent = str_replace("[CurrentPage]", $db_CurPage, $sContent);
+	$sContent = str_replace("[TotalRecords]", $db_TotalRecords, $sContent);
+	
+	//@2012-06-28
+	$sContent = str_replace("[PageURLBase]", $sPageLeading, $sContent);
+	
+	// goseaside@2005-02-17 14:50
+	// Add feature: auto-remove page-control if Not paged
+	if($db_TotalPages < 2) {
+		return preg_replace("/<!-- PageControl -->(.*?)<!-- PageControl; -->/ms", '', $sContent);
+	}
+	
+	$sPattern = array(
+		"/<!-- FirstPage -->(.*?)<!-- FirstPage; -->/ims",
+		"/<!-- PageBefore -->(.*?)<!-- PageBefore; -->/ims",
+		"/<!-- PageNext -->(.*?)<!-- PageNext; -->/ims",
+		"/<!-- LastPage -->(.*?)<!-- LastPage; -->/ims"
+		);
+	$sTemplete = "<a href=\"" . $vURLLeading . "[PageNo]\">[ShowText]</a>";
+	for($i = 0; $i < sizeof($sPattern); $i ++)
+	{
+		while(preg_match($sPattern[$i], $sContent, $sRegs))
+		{
+			// found one match
+			DebugP1("Found:" . $sRegs[0]);
+			$s = str_replace("[ShowText]", $sRegs[1], $sTemplete);
+			switch($i)
+			{
+				case 0:
+					// @2003-05-19 09:24
+					if($db_CurPage != 1) $s = str_replace("[PageNo]", 1, $s);
+					else $s = $sRegs[1];
+					break;
+				case 1:
+					if($db_CurPage > 1) $s = str_replace("[PageNo]", $db_CurPage - 1, $s);
+					else $s = $sRegs[1];
+					break;
+				case 2:
+					if($db_CurPage < $db_TotalPages) $s = str_replace("[PageNo]", $db_CurPage + 1, $s);
+					else $s = $sRegs[1];
+					break;
+				case 3:
+					// @2003-05-19 09:24
+					if($db_CurPage != $db_TotalPages) $s = str_replace("[PageNo]", $db_TotalPages, $s);
+					else $s = $sRegs[1];
+					break;
+			}
+			$sContent = str_replace($sRegs[0], $s, $sContent);
+		}
+	}
+	return $sContent;
+}
+
+// 用户状态管理
+$sLoginURL = "/login.php";
+$bSessionStarted = false;
+
+function EnableCart()
+{
+	global $bUnixOS, $bSessionStarted;
+	// ? @2003-06-09 11:40
+	if($bSessionStarted && isset($_SESSION[$CartName])){
+		return;
+	}
+	$bSessionStarted = True;
+	
+	$s_path = session_save_path();
+	
+	if(!$bUnixOS)
+	{
+		if( '' == $s_path ) $s_path = $_ENV['TEMP'];
+		if( '' == $s_path ) $s_path = $_ENV['TMP'];
+		if( '' == $s_path ) $s_path = "/temp";
+	}
+	else {
+		if( '' == $s_path ) $s_path = "/tmp";
+	}
+	
+	if($s_path != session_save_path()) session_save_path($s_path);
+	
+	if(!file_exists($s_path)) mkdir($s_path);
+	
+	session_start();
+	$CartName = "SessionInfo";
+	if(!empty($_SESSION[$CartName]))
+	{
+		$_SESSION[$CartName] = array();
+		$_SESSION[$CartName]["Inner_flag_"] = 0;
+	}
+}
+
+function ModifyCart($vItemID, $vItems, $bAuthUser = false)
+{
+	$_SESSION['SessionInfo'][$vItemID] = $vItems;
+	if($bAuthUser)$_SESSION['SessionInfo']["Inner_flag_"] = 1;
+}
+
+function GetCartVal($vItemID)
+{
+	return $_SESSION['SessionInfo'][$vItemID];
+}
+
+function KillCart()
+{
+	DisableError();
+	EnableCart();
+	$fn = session_save_path()."/sess_".session_id();
+	session_unset();
+	session_destroy();
+	unlink($fn);
+}
+
+function ShowLoginWindow($vWidth = 420, $vHeight = 180, $vTop = 100, $vLeft = 300)
+{
+	global $sLoginURL;
+	$s_style = "top=$vTop, left=$vLeft, width=$vWidth, height=$vHeight, scrollbars=no, resizable";
+	$s = "<script>";
+	$s .= "WinLogin=open(\"$sLoginURL\",\"login_window\",\"$s_style\");";
+	$s .= "WinLogin.focus();";
+	$s .= "</script>";
+	prt($s);
+}
+
+// role check
+function DefCheckRole()
+{
+	EnableCart();
+	
+	if(!isset($_SESSION['SessionInfo'])) return false;
+	
+	if($_SESSION['SessionInfo']["Inner_flag_"] == 0){
+		return false;
+	}
+	return True;
+}
+
+function ForceLogin($vChkRole = "DefCheckRole")
+{
+	if(!$vChkRole()) ShowLoginWindow();
+}
+
+function ModuleCRInfo()
+{
+	global $GeneralMInfo;
+
+	$sModuleInfo = "<title>Copyright info</title>\n<table border='0' style='background-color:silver'>\n";
+	$sModuleInfo .= "<tr style='background-color:cyan'><th colspan='2'><font color='blue'>General module info</th></tr>\n";
+
+	while(list($key, $value) = each($GeneralMInfo))
+		$sModuleInfo .= "<tr><td><small>$key</td><td><small><b>$value</b></td></tr>\n";
+
+	$sModuleInfo .= "</table>\n";
+
+	die ($sModuleInfo);
+}
+
+function ApplyFormDatas($vString1)
+{
+	$s = $vString1;
+	
+	foreach($_REQUEST as $key => $value)
+	{
+		$s = str_replace("[$key]", $value, $s);
+		$s = str_replace("[!$key]", $value, $s);
+	}
+	return $s;
+}
+
+define("XMLDATA_LEADING", "xd_");
+function GenXMLData()
+{
+	$s = "";
+	
+	foreach($_REQUEST as $key => $value)
+		if(substr($key, 0, 3) == XMLDATA_LEADING)
+			$s .= "<$key>" . gs_addslashes_req($key) . "</$key>";
+	
+	return $s;
+}
+// Add @2003-01-20
+class XMLDataMisc
+{
+	var $arrdata, $mFlag3s, $mDataDeny, $mDataAllow;
+
+	function XMLDataMisc($vData = "")
+	{
+		$this->mFlag3s = 0;
+
+		$t = $vData;
+		while(preg_match("/<(".XMLDATA_LEADING."[^<]*)>(.*)<\/\\1>/is", $t, $Regs))
+		{
+			$key1 = $Regs[1];
+			$val1 = $Regs[2];
+			$this->arrdata[$key1] = $val1;
+			$t = str_replace($Regs[0], "", $t);
+		}
+	}
+	// Added @2003-06-13 11:20
+	function deny($vFilter)
+	{
+		$this->mFlag3s = -1;
+		$this->mDataDeny[] = $vFilter;
+		DebugP1("Deny: $vFilter");
+	}
+	function allow($vFilter)
+	{
+		$this->mFlag3s = 1;
+		$this->mDataAllow[] = $vFilter;
+		DebugP1("Allow: $vFilter");
+	}
+	function modify($vKey, $vValue)
+	{
+		$thekey = (substr($vKey, 0, 3) == XMLDATA_LEADING) ? $vKey : "xd_$vKey";
+
+		DebugP1("Modify: $thekey");
+
+		$t = (isset($this->arrdata[$thekey])) ? true : false;
+		if($t) DebugP1("Found old value of $thekey");
+
+		$sKeyName=substr($thekey, 3);
+
+		switch($this->mFlag3s)
+		{
+			case 1:
+				// Allow procedure
+				$t1 = false;
+				DebugP1("Lookup in allow list");
+				foreach($this->mDataAllow as $tmp_k1 => $value1)
+					if(preg_match("/".$value1."/is", $sKeyName)){
+						$t1 = true;
+						DebugP1("found in allow list");
+						break;
+					}
+				break;
+
+			case -1:
+				// Deny
+				$t1 = true;
+				DebugP1("Lookup in deny list");
+				foreach($this->mDataDeny as $tmp_k1 => $value1){
+					if(preg_match("/".$value1."/is", $sKeyName)){
+						$t1 = false;
+						DebugP1("found in deny list");
+						break;
+					}
+				}
+				break;
+
+			case 0:
+				$t1 = true;
+		}
+		if($t1){
+			$this->arrdata[$vKey] = $vValue;
+			DebugP1("Modify now");
+		}
+
+		return ($t && $t1);
+	}
+	function getxml($vAutoReplace = true)
+	{
+		if($vAutoReplace)$this->autoreplace();
+
+		// goseaside@2005-02-07 20:43
+		if(!sizeof($this->arrdata)) return '';
+		$t = "";
+		foreach($this->arrdata as $key1 => $val1)
+		{
+			// goseaside@2004-07-04 17:18
+			$t .= "<$key1>".addslashes($val1)."</$key1>";
+		}
+		return $t;
+	}
+	function autoreplace()
+	{
+		$t1 = 0;
+		$t0 = 0;
+		foreach($_REQUEST as $key => $value)
+		{
+			if(substr($key, 0, 3) == XMLDATA_LEADING)
+			{
+				$t0 ++;
+				if($this->modify($key, $value)) $t1++;
+			}
+		}
+		return array($t0, $t1);
+	}
+
+}
+function ApplyXMLDatas($vString1, $vXMLData)
+{
+	$s_data = $vXMLData;
+	$s = $vString1;
+	while(preg_match("/<(xd_[^<]*)>([^<]*)/is", $s_data, $Regs))
+	{
+		$s = str_replace("[{$Regs[1]}]", $Regs[2], $s);
+		$s_data = str_replace("{$Regs[0]}</{$Regs[1]}>", "", $s_data);
+	}
+	return $s;
+}
+// Bug fix, @2003-06-09 11:34
+// Assist for sql-operation
+class sql_ass
+{
+	var $TblName, $arrPairs, $arrPairs2, $WhereStr, $arrSelect, $arrRaw;
+	var $sAddL, $sAddR, $bAutoAppend;
+	
+	function sql_ass($vTable, $vDBType = DATABASE_TYPE_MYSQL, $vAutoAppend = false)
+	{
+		if($vAutoAppend){
+			$this->bAutoAppend = true;
+			switch($vDBType){
+				case DATABASE_TYPE_MYSQL:
+					$this->sAddL = $this->sAddR = '`';
+					break;
+				
+				case DATABASE_TYPE_MSSQL:
+					$this->sAddL = '[';
+					$this->sAddR = ']';
+					break;
+					
+				default: $this->sAddL = $this->sAddR = '';
+				}
+			}
+		else $this->bAutoAppend = false;
+		
+		$this->TblName = ($vAutoAppend ? $this->sAddL : '').$vTable.($vAutoAppend ? $this->sAddR : '');
+		
+	}
+	function pair($vName, $vValue = "")
+	{
+		if(strlen($vName)) $this->arrPairs[gs_eat_fld($vName)] = $vValue;
+	}
+	
+	// @2014-08-28
+	function pairs($arr_p)
+	{
+	    foreach($arr_p as $k => $v) $this->pair($k, $v);
+	}
+	
+	// @2014-08-28
+	function autopairs($v, $arr_q = false)
+	{
+	    if(empty($arr_q)) $arr_q = $_REQUEST;
+	    
+	    // f1, outf > inf, outf|fun>inf, f2|fun
+	    $arr_f = split(',', preg_replace("/\s/", '', $v));
+        foreach($arr_f as $f1)
+        {
+            //echo "$f1\n";
+            if(0 == strlen($f1)) continue;
+            
+            // required?
+            if('*' == $f1{0})
+            {
+                $f1 = substr($f1, 1);
+                
+                // Check it
+                if(!isset($arr_q[$f1])) return false;
+            }
+            
+            $def_value = false;
+            
+            // user info?
+            if('@' == $f1{0})
+            {
+                $f1 = substr($f1, 1);
+                
+                // Find in user info.
+                if (isset($_SESSION['userInfo'][$f1]) )
+                {
+                    $def_value = $_SESSION['userInfo'][$f1];
+                }
+            }
+            
+            if(preg_match("/^(\w+)([\|\w]+)*(>\w+)?$/", $f1, $R))
+            {
+                $out_f = $R[1];   // outside
+                
+                if(!empty($R[2]))
+                {
+                    // pipes
+                    $arr_p = preg_split('/\|/', $R[2], -1, PREG_SPLIT_NO_EMPTY);
+                }
+                else $arr_p = false;
+                
+                if(!empty($R[3]))
+                {
+                    // inner
+                    $in_f = substr($R[3], 1);
+                }
+                else $in_f = $out_f;
+                
+                if(false === $def_value)
+                {
+                    if(isset($arr_q[$out_f]))
+                    {
+                        $v_in = gs_noaddslashes_req($out_f, $arr_q);
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    $v_in = $def_value;
+                }
+                
+                if($arr_p)
+                {
+                    // Each pipe
+                    foreach($arr_p as $p1)
+                    {
+                        //echo "Call function: $p1";
+                        if(function_exists($p1)) $v_in = $p1($v_in);
+                    }
+                }
+                
+                // Store
+                $this->pair($in_f, addslashes($v_in));
+            }
+            //else echo "ERROR";           
+        }
+        
+        return true;
+	}
+	
+	// add @2003-06-09 21:30
+	function pair2($vName, $vValue = "")
+	{
+		if(strlen($vName)) $this->arrPairs2[gs_eat_fld($vName)] = $vValue;
+	}
+	function s($vName)
+	{
+		if(strlen($vName)) $this->arrSelect[] = gs_eat_fld($vName);
+	}
+	// Added @2003-05-19 08:56
+	function moreupdate($vName, $vValue)
+	{
+		// fixed @2004-06-03 10:48
+		$this->arrRaw[gs_eat_fld($vName)] = $vValue;
+	}
+	function getinsert()
+	{
+		// Add this line @2003-06-11 09:28
+		if(!sizeof($this->arrPairs)) return "";
+		
+		$arr = $this->arrPairs;
+		if(defined('ORACLE_SEQ_ID') && DATABASE_USE_TYPE == DATABASE_TYPE_ORACLE)
+		{
+			if(!isset($arr['id'])) $arr['id'] = ORACLE_SEQ_ID;
+		}
+		
+		$list_name = ""; $list_value = "";
+		foreach($arr as $key => $value)
+		{
+			$list_name .= $this->sAddL . $key . $this->sAddR . ", ";
+			$list_value .= "'$value', ";
+		}
+		$list_name = substr($list_name, 0, -2);
+		$list_value = substr($list_value, 0, -2);
+		$sql = "INSERT INTO {$this->TblName}($list_name) VALUES($list_value)";
+		return $sql;
+	}
+	function getselect()
+	{
+		// Add this @2003-06-11 09:28
+		if(!sizeof($this->arrSelect)){
+			$sql = "SELECT * FROM {$this->TblName} WHERE {$this->WhereStr}";
+			return $sql;
+		}
+
+		$list_name = "";
+		foreach($this->arrSelect as $tmp_k1 => $value)
+		{
+			$list_name .= "$value, ";
+		}
+		$list_name = substr($list_name, 0, -2);
+
+		$sql = "SELECT $list_name FROM {$this->TblName} WHERE {$this->WhereStr}";
+		return $sql;
+	}
+	function setwhere($vIDValue, $vIDKey = "id")
+	{
+		$id1 = gs_eat_fld($vIDKey);
+		$this->WhereStr = "$id1='$vIDValue'";
+	}
+	// goseaside@2006-05-12 09:18
+	function where($vIDKey, $vIDValue = false)
+	{
+		$id1 = gs_eat_fld($vIDKey);
+		if($vIDValue) $this->WhereStr = "$id1='$vIDValue'";
+		else $this->WhereStr = $vIDKey;
+	}
+	function getupdate()
+	{
+		// Add this line @2003-06-11 09:28
+		if(!sizeof($this->arrPairs) && !sizeof($this->arrRaw)) return "";
+
+		$list_update = "";
+		foreach($this->arrPairs as $key => $value)
+		{
+			$list_update .= $this->sAddL . $key . $this->sAddR . " = '$value', ";
+		}
+		// Added@2004-06-07 11:49
+		if(sizeof($this->arrRaw)) { // goseaside@2005-02-07 20:46
+			foreach($this->arrRaw as $key => $value)
+			{
+				$list_update .= "$key=$value, ";
+			}
+		}
+		$list_update = substr($list_update, 0, -2);
+		$sql = "UPDATE {$this->TblName} SET $list_update WHERE {$this->WhereStr}";
+		return $sql;
+	}
+	// add @2003-06-09 21:30
+	function getupdate2()
+	{
+		// Add this line @2003-06-11 09:28
+		if(!sizeof($this->arrPairs2)) return "";
+
+		$list_update = "";
+		foreach($this->arrPairs2 as $key => $value)
+		{
+			$list_update .= "$key='$value', ";
+		}
+		$list_update = substr($list_update, 0, -2);
+		$sql = "UPDATE {$this->TblName} SET $list_update WHERE {$this->WhereStr}";
+		return $sql;
+	}
+	// add @2003-06-13 10:24
+	function getdelete()
+	{
+		$sql = "DELETE FROM {$this->TblName} WHERE {$this->WhereStr}";
+		return $sql;
+	}
+}
+//
+function gs_eat_fld( $vField )
+{
+	return preg_match("/^fld_(.*)$/", $vField, $R) ? $R[1] : $vField;
+}
+
+// Added @2003-06-09 14:55
+$gfo_fuh = array();
+define("UPLOAD_HANDLE_PARA_MISS", -40);
+define("UPLOAD_HANDLE_TYPE_ERR", -30);
+define("UPLOAD_HANDLE_NO_FILE", -20);
+define("UPLOAD_HANDLE_EMPTY_FILE", -10);
+define("UPLOAD_HANDLE_ERROR_SUCESS", 0);
+$errmsg_fu = array(
+	UPLOAD_HANDLE_PARA_MISS => "程序错误",
+	UPLOAD_HANDLE_TYPE_ERR => "文件类型不符合要求",
+	UPLOAD_HANDLE_NO_FILE => "没有文件上载",
+	UPLOAD_HANDLE_EMPTY_FILE => "上载文件空或超过限制大小",
+	
+	UPLOAD_HANDLE_ERROR_SUCESS => "上载成功",
+	);
+function FileUpHandle1($vArray, $vAutoPrefix = true)
+{
+	// Input: fld, imageonly, savepath, saveto
+	// Output: fn, pathfn, fsize, ftype
+	global $gfo_fuh;
+
+	// Required
+	$savepath = $vArray["savepath"];	$fld = $vArray["fld"];
+
+	if(!strlen($fld) || !strlen($savepath)){
+		// No empty
+		return UPLOAD_HANDLE_PARA_MISS;
+	}
+
+	// Can be empty
+	$saveto = $vArray["saveto"];
+	$imageonly = isset($vArray["imageonly"]) && $vArray["imageonly"];
+	
+	// mkdir first
+	@mkdir($savepath, 0777, true);
+
+	if(substr($savepath, -1) != "/") $savepath .= "/";
+
+	$NewFile = new FileUpload(($vAutoPrefix ? "fld_" : '').$fld);
+	$fname = $NewFile->p["name"]; $ftype = $NewFile->p["type"]; $fsize = $NewFile->p["size"];
+
+	DebugP1("Upload file:$fname");
+
+	// No file upload
+	if(!strlen($fname)){
+		return UPLOAD_HANDLE_NO_FILE;
+	}
+	if(!$fsize) return UPLOAD_HANDLE_EMPTY_FILE;
+	//goseaside@2004-08-02 08:54
+	// 严格的检查是必要的
+	if($imageonly){
+		$arr1 = getimagesize($NewFile->p["tmpfile"]);
+		// fixme:: only mime:image/* is supported
+		if(!strstr($ftype,"image/") || $arr1[2] < 1 || $arr1[2] > 3) {
+			DebugP1("Upload file: need an image file, but upload file is NOT.");
+			return UPLOAD_HANDLE_TYPE_ERR;
+			}
+		}
+
+	$newfn = $NewFile->moveto($savepath,  $saveto);
+
+	//fn, pathfn, fsize, ftype
+	$gfo_fuh["fn"] = $newfn;	$gfo_fuh["pathfn"] = $savepath.$newfn;
+	$gfo_fuh["fsize"] = $fsize;	$gfo_fuh["ftype"] = $ftype;
+	// Add @2003-06-11 14:56
+	$gfo_fuh["oldfn"] = $fname;
+
+	return UPLOAD_HANDLE_ERROR_SUCESS;
+}
+
+// Added @2003-08-01 17:17
+$sCloseF5Opener = "<script>window.opener.location.reload();self.close();</script>";
+
+// Added @2004-02-16 08:33
+function parseArgs()
+{
+	global $argv;
+	$f = NULL; $r = NULL;
+	for($x = 0; $x < count($argv); $x++) {
+		if($argv[$x]{0} == "-") {
+			$f = $argv[$x];
+			$r[substr($f,1,strlen($f))] = true;
+		}
+		if ($f != NULL) {
+			if(($argv[$x+1] != NULL) && ($argv[$x+1] != "") && ($argv[$x+1] != "") && ($argv[$x+1]{0} != "-")) {
+				$r[substr($f,1,strlen($f))] = $argv[$x+1];
+			} else {
+				$f = $argv[x+1];
+			}
+		}
+	}
+
+	return $r;
+}
+
+// New codes from here
+// goseaside@2004-07-02 14:38
+function PatternProc2($vContent, $vOthers)
+{
+	$theptn = "/<!--\s*UseTemplete@([\d\.]+)\s+(page|wrap)?size\s*=\s*(\d+)\s*(,\s*\d*)?\s+param\s*=\s*([a-zA-Z_0-9,-]*)\s*-->(.*?)<!--\s+Wrap@\\1\s+-->(.*?)<!--\s+Fill@\\1\s+-->(.*?)<!--\s+Null@\\1\s+-->(.*?)<!--\s+UseTemplete@\\1;\s+-->/ms";
+	
+	$sContent = $vContent;
+	// Deal with parrten
+	// goseaside@2004-07-03 08:29
+	while(preg_match($theptn, $sContent, $regs))
+	{
+		// goseaside@2004-07-03 10:50
+		$sContent = str_replace($regs[0],
+			PP2Func($regs, $vOthers),
+			$sContent);
+	}
+	
+	return $sContent;
+}
+
+// goseaside@2014-08-28
+function get_query_for_pp($id, $vOthers)
+{
+    //
+    global $sDefQuery;
+    
+    $id_q = 'sql_'.$id;
+    
+    // Old style
+    if(isset($vOthers[$id_q]))
+    {
+        //return $vOthers[$id_q];
+        
+        $sQuery = $vOthers[$id_q];
+		$i_depth = array_depth_pp($sQuery);
+		switch($i_depth)
+		{
+			case -1: // No record
+				$sQuery = array();
+				break;
+			
+			case 1:  // one record
+				$sQuery = array($sQuery);
+				break;
+			
+			default:  // String, or else
+				// Do nothing
+				;
+		}
+		
+		return $sQuery;
+    }
+    
+    // Direct data
+    if(isset($vOthers[$id]['data'])) return $vOthers[$id]['data'];
+    
+    // Cached data
+    
+    // custom query
+    if(isset($vOthers[$id]['custom'])) return $vOthers[$id]['custom'];
+    
+    // generate query
+    // Table needed
+    if(isset($vOthers['ds'][$id]))
+    {
+        $tbl = $vOthers['ds'][$id];
+        
+        // default option support
+        if(strstr($tbl, ':'))
+        {
+            list($tbl, $opt) = split(':', $tbl);
+            
+            // options
+            if(!empty($opt))
+            {
+                $arr_opt = split(';', $opt);
+                foreach($arr_opt as $opt1)
+                {
+                    // option order
+                    if( (substr($opt1, 0, 2) == 'o=') && empty($vOthers[$id]['order']) )
+                    {
+                        // without order?
+                        $vOthers[$id]['order'] = substr($opt1, 2);
+                    }
+                }
+            }
+        }
+        
+        // where
+        if(!empty($vOthers[$id]['where']))
+        {
+            $s_where = 'WHERE ' . $vOthers[$id]['where'];
+        }
+        else $s_where = '';
+        
+        // order
+        if(!empty($vOthers[$id]['order']))
+        {
+            // +/- support
+            if(strstr($vOthers[$id]['order'], '-'))
+            {
+                $arr_o = split(',', $vOthers[$id]['order']);
+                $arr_o2 = array();
+                foreach($arr_o as $o1)
+                {
+                    $o1 = trim($o1);
+                    if('-' == $o1{0}) $o1 = substr($o1, 1) . ' DESC';
+                    if('+' == $o1{0}) $o1 = substr($o1, 1);
+                    
+                    $arr_o2[] = $o1;
+                }
+                
+                $vOthers[$id]['order'] = join(',', $arr_o2);
+            }
+            
+            $s_order = 'ORDER BY ' . $vOthers[$id]['order'];
+        }
+        else $s_order = '';
+        
+        // final
+        return "SELECT * FROM $tbl $s_where $s_order";
+    }
+    
+    // Last choice, default query
+    if(isset($sDefQuery[$id])) return $sDefQuery[$id];
+    
+    return false;
+}
+
+function get_callback_for_pp($id, $vOthers)
+{
+    // Old style
+    $id_e = 'func_'.$id;
+    if(isset($vOthers[$id_e])) return $vOthers[$id_e];
+    
+    // New style
+    if(!empty($vOthers[$id]['callback'])) return $vOthers[$id]['callback'];
+    
+    // None
+    return '';
+}
+
+// goseaside@2004-07-02 14:39
+function PP2Func($vRegs, $vOthers)
+{
+	global $MyDB, $iPageNo, $sDefQuery, $bPagedDisplay, $db_PageSize;
+
+	DebugP1("Pattern ID={$vRegs[1]}", "P");
+	$id = $vRegs[1];		// 入口 id
+	
+	$sQuery = get_query_for_pp($id, $vOthers);
+	
+	// on false, if not found
+	
+	$sNewFunc = get_callback_for_pp($id, $vOthers);	// 允许替换增加处理函数
+	
+	// goseaside@2004-06-17 14:33
+	// New:: parameter support for each query
+	// [_PSV_?]
+	if(strstr($sQuery, '[_PSV_'))
+	{
+		$arrPara = $vOthers['psv_'.$id];	// 参数表
+		if(isset($arrPara)){
+			if(is_array($arrPara)) {
+				foreach($arrPara as $key => $val)
+					$sQuery = str_replace("[_PSV_$key]", $val, $sQuery);
+			}
+			else $sQuery = str_replace('[_PSV_0]', $arrPara, $sQuery);
+		}
+		// goseaside@2004-06-18 11:51
+		$arrPara = $vOthers['psv'];	// 默认参数表，可以减少参数传递次数
+		if(isset($arrPara)){
+			if(is_array($arrPara)) {
+				foreach($arrPara as $key => $val)
+					$sQuery = str_replace("[_PSV_$key]", $val, $sQuery);
+			}
+			else $sQuery = str_replace('[_PSV_0]', $arrPara, $sQuery);
+		}
+	}
+	// End of PSV
+	// PSVD
+	if(strstr($sQuery, '[_PSVD_'))
+	{
+		// Dyna
+		$sQuery = str_replace("[_PSVD_ALL_]", $vRegs[5], $sQuery);
+		
+		$arr_p = explode(',', $vRegs[5]);
+		foreach($arr_p as $key => $val)
+			$sQuery = str_replace("[_PSVD_$key]", $val, $sQuery);
+	}
+	
+	if(!is_array($sQuery))
+	{
+        if(empty($sQuery)) return "";
+	}
+	
+	$sTheFormat['size'] = $vRegs[3] * 1;
+	//7 => Wrap = 7, Fill blank = 8
+	// Null = 9
+	$sTheFormat['Format'] = $vRegs[6];
+	$sTheFormat['Wrapper'] = $vRegs[7];
+	$sTheFormat['Blank'] = $vRegs[8];
+	$sTheFormat['Null'] = $vRegs[9];
+	
+	if($vRegs[4]) {
+		DebugP1("Need to wrap.");
+		$Lines1 = intval(substr($vRegs[4], 1));
+		$sTheFormat['Interval'] = $Lines1;
+		}
+	else $Lines1 = 0;
+	
+	// goseaside::UnQueryFormat support since 2007-1-3
+	
+	switch($vRegs[2])
+	{
+		case 'page':
+			DebugP1("Paged display.");
+			$bPagedDisplay = True;
+			
+			$db_PageSize = intval($sTheFormat['size']);
+			if(0 == $db_PageSize) $db_PageSize = 20;
+			
+			if(is_array($sQuery)) {
+				DebugP1("->");
+				return UnQueryFormat($sQuery, $sTheFormat, $sTheFormat['size'], $sNewFunc, $id);
+			}
+			else {
+				return QueryPageFormat($sQuery, $sTheFormat,
+					array(
+						'pagesize' => $sTheFormat['size'],
+						'pageno' => $iPageNo,
+						'pid' => $id,
+						),
+					$sNewFunc);
+			}
+			
+			break;
+			
+		case 'wrap':
+			DebugP1("Wrap display.");
+			$sContent = "";
+			
+			// goseaside@2007-1-3 6:18
+			// Format without query
+			$bFormatWithQuery = !is_array($sQuery);
+			
+			// BOM: select limit
+			// goseaside@2004-06-24 09:54
+			$Rows1 = $sTheFormat['size'];
+			if($Lines1 && $Lines1 * $Rows1 > 0){
+				$iTotalRec = $Lines1 * $Rows1;
+				if($bFormatWithQuery) $sQuery .= " LIMIT $iTotalRec";
+			}
+			// EOM@2004-06-22 12:45
+			
+			if($bFormatWithQuery){
+				$iQueryID = $MyDB->query($sQuery); $iCounter = 0;
+			
+				// No record found
+				if($MyDB->rows($iQueryID) == 0) return $sTheFormat['Null'];
+				while($therow = $MyDB->next_record($iQueryID)){
+					$iCounter ++;
+					// 处理部分
+					$s = $sTheFormat['Format'];
+					if(!empty($sNewFunc)) $s = $sNewFunc($therow, $s);
+					$s = RowFormat($therow, $s, $id);
+					$s = str_replace(array('[Row_Number]', '[.#]'), $iCounter, $s);
+					$sContent .= $s;
+					// 折行问题
+					if(($iCounter % $Rows1) == 0) $sContent .= $sTheFormat['Wrapper'];
+				}
+			}
+			else {
+				$iCounter = 0;
+			
+				// No record found
+				if(count($sQuery) == 0) return $sTheFormat['Null'];
+				foreach($sQuery as $therow){
+					$iCounter ++;
+					// 处理部分
+					$s = $sTheFormat['Format'];
+					if(!empty($sNewFunc)) $s = $sNewFunc($therow, $s);
+					$s = RowFormat($therow, $s, $id);
+					$s = str_replace(array('[Row_Number]', '[.#]'), $iCounter, $s);
+					$sContent .= $s;
+					// 折行问题
+					if(($iCounter % $Rows1) == 0) $sContent .= $sTheFormat['Wrapper'];
+				}
+			}
+			
+			// Fill with blank
+			while(($iCounter % $Rows1) != 0) 
+			{
+				$iCounter ++;
+				$sContent .= $sTheFormat['Blank'];
+			}
+			
+			// goseaside@2006-9-20 21:06
+			// 如果以 WrapStr 结尾，则需要去掉
+			$sWrapStr = trim($sTheFormat['Wrapper']);
+			$len1 = strlen($sWrapStr);
+			if( strlen($sWrapStr )) for(;;) {
+				$sContent = rtrim($sContent);
+				$sub1 = substr($sContent, -$len1);
+				if(strcmp($sub1, $sWrapStr) == 0) {
+					$sContent = substr($sContent, 0, strlen($sContent) - $len1);
+					DebugP1("wrap cleaned.", "D");
+				}
+				else break;
+			}
+			
+			return $sContent;
+			break;
+			
+		default:
+			// goseaside@2007-1-3 5:54
+			if(is_array($sQuery)) {
+				DebugP1("UnQueryFormat...");
+				return UnQueryFormat($sQuery, $sTheFormat, $sTheFormat['size'], $sNewFunc, $id);
+			}
+			else {
+				DebugP1("QueryFormat....");
+				return QueryFormat($sQuery, $sTheFormat, $sTheFormat['size'], $sNewFunc, $id);
+			}
+			
+			break;
+	}
+}
+
+// goseaside@2004-07-03 11:11
+function detect_load_func($vFuncName, $vModule = "")
+{
+	global $bUnixOS;
+	
+	if(function_exists($vFuncName)) return true;
+	if(strlen($vModule)) @dl($vModule.($bUnixOS ? '.so' : '.dll'));
+	if(function_exists($vFuncName)) return true;
+	
+	return false;
+}
+// goseaside@2004-07-03 11:15
+function post_curl($vURL, $vData, $vFile = "")
+{
+	if(!detect_load_func('curl_init', 'php_curl')) return 0;
+	$bUsingFile = strlen($vFile);
+
+	$ch = curl_init();
+	if($bUsingFile){
+		$fp = fopen ($vFile, 'w');
+		curl_setopt ($ch, CURLOPT_FILE, $fp);
+	}
+	curl_setopt($ch, CURLOPT_URL, $vURL);
+	curl_setopt($ch, CURLOPT_POST, 1);
+	curl_setopt($ch, CURLOPT_POSTFIELDS, $vData);
+	curl_exec ($ch);
+	curl_close ($ch);
+	fclose ($fp);
+}
+// goseaside@2004-07-15 16:12
+function checkRange($vValue, $vRange)
+{
+	$f_val = $vValue * 1.0;
+	$s = trim($vRange);
+	if( !preg_match("/^(\(|\[)(\d+)?\s*,\s*(\d+)?(\)|\])$/", $s, $Regs)) return false;
+	
+	$bLeftEqu = ($Regs[1] == '[');
+	$bRightEqu = ($Regs[4] == ']');
+	$bLeft = strlen(trim($Regs[2])) != 0;
+	$bRight = strlen(trim($Regs[3])) != 0;
+	
+	if($bRight) {
+		$f_Right = $Regs[3] * 1.0;
+		if($bRightEqu && $f_Right < $f_val) {return false;}
+		else if(!$bRightEqu && $f_Right <= $f_val) {return false;}
+		}
+	if($bLeft) {
+		$f_Left = $Regs[2] * 1.0;
+		if($bLeftEqu && $f_Left > $f_val) {return false;}
+		else if(!$bLeftEqu && $f_Left >= $f_val) {return false;}
+		}
+	
+	return true;
+}
+// goseaside@2004-08-09 07:04
+function checkMRange($vValue, $vRange)
+{
+	$arr_range = explode('/', $vRange);
+	foreach($arr_range as $tmp_k1 => $range1){
+		$range1 = trim($range1);
+		if(!strlen($range1)) continue;
+		if(strstr($range1, ',')){
+			if( checkRange($vValue, $range1)) return true;
+			}
+		else {
+			if( $vValue * 1 == $range1 * 1) return true;
+			}
+		}
+	return false;
+}
+// goseaside@2004-07-20 17:29
+function chkStrLen($vStr, $vLenPtn)
+{
+	$i_len = strlen($vStr);
+	
+	if(strstr($vLenPtn, '/')){
+		$s = "/$vLenPtn/";
+		if( !strstr($s, "/$i_len/")) return false;
+		}
+	else {
+		if( !checkMRange($i_len, $vLenPtn)) return false;
+		}
+	return true;
+}
+// goseaside@2004-07-24 17:00
+// tested
+function trim_4($vStr, $vFlag)
+{
+	$s = $vStr;
+	if(strstr($vFlag, "<")) $s = ltrim($s);
+	if(strstr($vFlag, ">")) $s = rtrim($s);
+	if(strstr($vFlag, "^")) $s = preg_replace("/\s+/ims", "", $s);
+	return $s;
+}
+// goseaside@2005-01-23 16:11
+function serial_format_show( $vSerial, $vAdjust = false, $vAddDash = true )
+{
+	$s = strtoupper($vSerial);
+	if( $vAdjust && strlen($s) > 25 ) $s = substr($s, 9, 16);
+	
+	if(!$vAddDash) return $s;
+	
+	$arr1 = array();
+	for( $i=0; $i<strlen($s); $i += 4 ) {
+		$arr1[] = substr($s, $i, 4);
+	}
+	return join('-', $arr1);
+}
+function serial_format_in( $vSerial )
+{
+	$s = trim_4($vSerial, '^');
+	$s = str_replace('-', '', $s);
+	
+	return $s;
+}
+
+// 2015-10-21 06:19
+function array_depth_pp($v)
+{
+	if(!is_array($v))
+	{
+		if(false === $v) return -1;
+		
+		return 0;
+	}
+	
+	return array_depth_rev($v);
+}
+
+function array_depth_rev($v)
+{
+	foreach($v as $o)
+	{
+		if(is_array($o)) return array_depth_rev($o) + 1;
+		
+		return 1;
+	}
+	
+	return 1;
+}
+
+
+function array_swap_oracle($arr)
+{
+	$arr_d = array();
+	$arr_c = array();
+	foreach($arr as $c => $arr_col)
+	{
+		$max1 = count($arr_col);
+		$arr_c[] = $c;
+	}
+	
+	for($i=0; $i<$max1; $i++)
+	{
+		$a = array();
+		foreach($arr_c as $c1)
+		{
+			$c2 = strtolower($c1);
+			$a[$c2] = $arr[$c1][$i];
+		}
+		
+		$arr_d[] = $a;
+	}
+	
+	return $arr_d;
+}
+
+function mydb_get_all($sql, $f_use_page_control = false)
+{
+    if(empty($sql)) return false;
+
+    if($f_use_page_control && $GLOBALS['page_oob']) return array();
+	
+	if($f_use_page_control && !empty($GLOBALS['page_limit']))
+    {
+    	if(DATABASE_USE_TYPE == DATABASE_TYPE_MYSQL)
+    	{
+	        $sql .= " LIMIT " . $GLOBALS['page_limit'];
+	    }
+	    
+	    if(DATABASE_USE_TYPE == DATABASE_TYPE_ORACLE)
+    	{
+    		// 
+    		list($min1, $page1) = explode(',', $GLOBALS['page_limit']);
+    		$max1 = $min1 + $page1; $min1 = intval($min1);
+    		
+    		if($min1) $sql_new = "SELECT * FROM (SELECT a_.*, ROWNUM rn_ FROM ($sql) a_ WHERE ROWNUM<=$max1) WHERE rn_>$min1";
+    		else $sql_new = "SELECT * FROM ($sql) WHERE ROWNUM<=$max1";
+    		
+	        $sql = $sql_new;
+	    }
+    }
+
+    if(DATABASE_USE_TYPE == DATABASE_TYPE_ORACLE)
+    {
+    	$arr_d1 = $GLOBALS['MyDB']->get_all($sql);
+    	
+    	$arr_d = array_swap_oracle($arr_d1);
+    	
+    }
+    else
+    {
+	    $res1 = $GLOBALS['MyDB']->query($sql);
+	    
+	    if(empty($res1)) return array();
+	    
+	    // fetch
+	    $arr_d = array();
+	    while($row = $GLOBALS['MyDB']->next_record($res1))
+	    {
+	        $arr_d[] = $row;
+	    }
+	}
+
+    // This line is temp.
+    if($f_use_page_control) $GLOBALS['page_total_count'] = count($arr_d);
+    
+    return $arr_d;
+}
+
+function mydb_get_one($sql)
+{
+    if(empty($sql)) return false;
+	
+	// fixed of oracle/limit
+    if(!strstr($sql, 'LIMIT') && DATABASE_USE_TYPE == DATABASE_TYPE_MYSQL) $sql .= ' LIMIT 1';
+
+    $res1 = $GLOBALS['MyDB']->query($sql);
+    
+    if(empty($res1)) return array();
+    
+    // fetch
+    $arr_d = array();
+    if($row = $GLOBALS['MyDB']->next_record($res1))
+    {
+        return $row;
+    }
+    
+    return array();
+}
+
+function mydb_get_one_field($sql)
+{
+    if(empty($sql)) return false;
+    
+    $r = mydb_get_one($sql);
+    if(!$r) return false;
+
+    return $r[0];
+}
+
+function mydb_get_one_as_array($sql)
+{
+    if(empty($sql)) return false;
+
+    $res1 = $GLOBALS['MyDB']->query($sql);
+    
+    if(empty($res1)) return array();
+    
+    $arr_d = array();
+    while($row = $GLOBALS['MyDB']->next_record($res1))
+    {
+        $arr_d[] = $row[0];
+    }
+
+    return $arr_d;
+}
+
+function mydb_query($sql)
+{
+    if(empty($sql)) return false;
+
+    $r = $GLOBALS['MyDB']->query($sql);
+    
+    return $r;
+}
+
+function mydb_id_insert($sql)
+{
+    return $GLOBALS['MyDB']->idinsert();
+}
+
+function mydb_affected()
+{
+    return $GLOBALS['MyDB_LINK']->affected();
+}
+
+function mydb_page_control( $sql, $page, $page_size = -1 )
+{
+    // when, to reset to default page size
+    if(!defined('PAGE_SIZE_BY_DEFAULT')) define('PAGE_SIZE_BY_DEFAULT', 10);
+    
+    if(-1 == $page_size || $page_size < 2) $page_size = PAGE_SIZE_BY_DEFAULT;
+	
+    // query, calculate, return
+    $sql = trim($sql);
+    if(empty($sql)) return false;
+
+    $page = intval($page);
+    if($page < 1) $page = 1;
+
+    // reset all data
+    $GLOBALS['page_total_count'] = 0;
+    $GLOBALS['page_cur_page'] = $GLOBALS['page_total_page'] = 1;
+    $GLOBALS['page_limit']    = '';
+    $GLOBALS['page_oob']      = false;
+    $GLOBALS['page_pagesize'] = $page_size;
+    
+    $arr_p = parse_sql($sql);
+    if(!empty($arr_p['sql_c']))
+    {
+        // count
+        $c = mydb_get_one_field($arr_p['sql_c']);
+        
+        // calc.
+        if($c < $page_size)
+        {
+            $GLOBALS['page_total_count'] = $c;
+
+            if($page > 1)  $GLOBALS['page_oob']     = true;
+        }
+        else
+        {
+            // more pages
+            $total_p = ceil($c/$page_size);
+            if($page > $total_p) 
+            {
+                $page = $total_p;
+                $GLOBALS['page_oob']    = true;
+            }
+
+            $offset1 = ($page - 1) * $page_size;
+
+            $GLOBALS['page_limit']          = " $offset1,$page_size";
+            $GLOBALS['page_total_count']    = $c;
+            $GLOBALS['page_cur_page']       = $page;
+            $GLOBALS['page_total_page']     = $total_p;
+        }
+    }
+    else
+    {
+        $GLOBALS['page_total_count'] = 0;
+    }
+
+    $arr_r = array();
+    foreach(explode(',', 'page_total_count,page_total_page,page_cur_page') as $k) $arr_r[$k] = $GLOBALS[$k];
+    return $arr_r;
+}
+
+
+function parse_sql($sql)
+{
+    //echo "\n\n$sql\n";
+    $sql = strtolower(trim($sql));
+    $sql = preg_replace("/\s+/", ' ', $sql);
+
+    if(strcmp('select', substr($sql, 0, 6))) return false;
+    $s = substr($sql, 7);
+
+    // order by
+    @list($s, $o) = explode(' order by ', $s);
+
+    // where
+    @list($s, $w) = explode(' where ', $s);
+
+    // from
+    list($f, $t) = explode(' from ', $s);
+
+    // for count
+    $sql = "SELECT COUNT(*) FROM $t";
+    if(!empty($w)) $sql .= " WHERE $w";
+
+    $arr_d = array('field' => $f, 'table' => $t, 'where' => $w, 'order' => $o, 'sql_c' => $sql, );
+    
+    return $arr_d;
+}
+

@@ -1,0 +1,34 @@
+<?php
+EnableDebugMode(false);	//
+
+$fn = 'flags/conf.dat';
+
+if(!empty($_POST['cmd_save']))
+{
+	$_REQUEST['out_time_set'] = empty($_REQUEST['out_time_set']) ? '0900-2100' : $_REQUEST['out_time_set'];
+	$_REQUEST['call_max'] = empty($_REQUEST['call_max']) ? '3' : $_REQUEST['call_max'];
+	
+	//
+	if(!empty($_REQUEST['out_time_set']))
+	{
+		$s = trim($_REQUEST['out_time_set']);
+		$arr_t = explode(',', $s);
+		$arr_c = array();
+		foreach($arr_t as $tp)
+		{
+			if(preg_match("/^(\d{4})-(\d{4})$/", $tp, $R)) $arr_c[] = array($R[1], $R[2]);
+		}
+		
+	}
+	
+    $arr_d = array($_REQUEST['out_time_set'], $_REQUEST['call_max'], 'c' => $arr_c);
+    
+    file_put_contents($fn, serialize($arr_d));
+
+    echo "<script>alert('ok');</script>";
+}
+
+// Load last data, or none
+$arr_d = is_file($fn) ? unserialize(file_get_contents($fn)) : array('0900-2100', '3');
+
+$arr_DATA_TO_DUMP['conf'] = $arr_d;

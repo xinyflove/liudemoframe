@@ -1,0 +1,42 @@
+<!--#include file="header.html" -->
+
+<title>导入号码清单 - 电话通知机器人</title>
+
+<script>
+	
+var arr_status = ['', '已上传，准备导入。。。', '导入进行中，请稍候。。。'];
+
+var a_status = 0;
+
+//[A_STATUS]
+
+</script>
+
+<div style="margin-left: 8px;">
+
+<form name="form1" method="post" enctype="multipart/form-data" action="[____Q]">
+    
+    <div><h3> 导入号码清单 </h3></div>
+    <div>
+        <input type="file" name="file1">
+        <br>
+        <div style="color:red">请务必清理掉格式</div>
+        
+        <br><br>
+        下载：<a href="download/list.xls" target="_blank">样例</a>
+        <br><br>
+        
+        <br><br>
+
+        <input type="submit" name="cmd_ok" value="OK">
+    </div>
+    
+    <div style="margin:10px; color:red;">
+    	<script> document.write(arr_status[a_status]);</script>
+    </div>
+    
+</form>
+</div>
+
+
+<!--#include file="foot.html" -->

@@ -1,0 +1,11 @@
+<?php
+EnableDebugMode(false);	//
+
+// execute command
+if(empty($_POST['cmd'])) exit;
+
+if('j_cmd_start' == $_POST['cmd']) touch('flags/flag.global_run');
+if('j_cmd_stop' == $_POST['cmd']) @unlink('flags/flag.global_run');
+
+
+die( json_encode( array( 'status'=>1 ) ) );

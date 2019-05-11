@@ -1,0 +1,6 @@
+<?php
+EnableDebugMode(false);	// 
+
+$arr_SQL_LIST['sql_60010'] = "SELECT status_last, count(*) as c FROM out_list group by status_last";
+
+

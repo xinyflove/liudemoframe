@@ -1,0 +1,82 @@
+<!--#include file="header.html" -->
+
+<title>统计 - 电话通知机器人</title>
+<h3>统计</h3>
+
+<script src="js/echarts.common.min.js"></script>
+<div id="main" style="width:800px;height:400px; float: left;"></div>
+    
+<script type="text/javascript">
+
+var arr_color  = {0: 'black', 10: 'red', 60:'blue', 100: 'green' };
+var arr_check1 = {0: '等待', 10: '未拨通', 60:'已拨通，未通知完', 100: '通知完成' };
+
+var arr_check = {0: '等待', 10: '<span style="color:red">未拨通</span>', 
+       60:'<span style="color:blue">已拨通，未通知完</span>', 100: '<span style="color:green">通知完成</span>' };
+function dealwith_magic()
+{
+	for(var id in arr_check) $("span.check_" + id).html(arr_check[id]);
+}
+
+function document_on_ready()
+{
+	dealwith_magic();
+}
+
+// real data from here!
+var stat_data = [
+<!-- UseTemplete@60010 size=0 param= -->
+	{ 'name': arr_check1[ [.status_last]] + " ([.c])", 'value': [.c], 'itemStyle': {'color': arr_color[ [.status_last]]} },
+	<!-- Wrap@60010 -->
+	<!-- Fill@60010 -->
+	<!-- Null@60010 -->
+	<!-- UseTemplete@60010; -->
+	];    
+
+// [STAT_DATA]
+
+var myChart = echarts.init(document.getElementById('main'));
+
+option = {
+    series: [
+    {
+		name: 't1',
+		type: 'pie',
+		radious: "55%",
+        data: stat_data
+    },
+    
+    ]
+};
+
+	myChart.setOption(option);
+		
+</script>
+
+<div style="clear: both;"></div>
+<br>
+<div style="margin-left: 8px;">
+<table class="table" cellspacing="0">
+	<tr class="spec">
+		<th>分类</th>
+		<th>数量</th>
+	</tr>
+
+	<!-- UseTemplete@60010 size=0 param= -->
+	<tr id="line_[.id]" onmouseover="style.backgroundColor='#FF9900'" onmouseout="style.backgroundColor='#FFFFFF'">
+		<td><span class="check_[.status_last]"> [.status_last] </span></td>
+		<td>[.c]</td>
+		
+	</tr>
+	<!-- Wrap@60010 -->
+	<!-- Fill@60010 -->
+	<!-- Null@60010 -->
+	
+	<!-- UseTemplete@60010; -->
+	
+</table>
+</div>
+
+<br><br>
+
+<!--#include file="foot.html" -->

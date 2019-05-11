@@ -1,0 +1,32 @@
+<?php
+EnableDebugMode(false);	//
+
+$fn = 'flags/conf.cache';
+
+// Load last data, or none
+$arr_d = is_file($fn) ? unserialize(file_get_contents($fn)) : array();
+
+if(!isset($arr_d['split'])) $arr_d['split'] = 0;
+
+if(!empty($_POST['cmd_save']))
+{
+    //$arr_d = array();
+    foreach ($_POST as $k => $v) {
+        if(!strstr($k, '_'))
+        {
+            // value should be a integer
+            // key should be a word ...
+            $v = intval($v);
+            if(!preg_match("/^[a-zA-Z0-9_\.]+$/", $k)) continue;
+
+            $arr_d[$k] = $v;
+        }
+    }
+    
+    file_put_contents($fn, serialize($arr_d));
+
+    echo "<script>alert('ok');</script>";
+}
+
+$arr_DATA_TO_DUMP['conf_data'] = $arr_d;
+

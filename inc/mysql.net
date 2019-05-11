@@ -1,0 +1,325 @@
+<?php
+/*
+模块名：	PHP 通用模块.MySQL
+版本号： 	2.22
+编写人：	goseaside
+电子邮件：	goseaside@sina.com
+联系电话：	13693683480
+
+版权声明
+==============
+	商业使用需和本人联系，购买使用授权，将提供持续更新支持；
+	个人出于研究/测试目的，可免费使用；
+	请勿删除说明信息；
+	有意见/建议/错误请发邮件给我。
+*/
+
+/**
+* 数据库通用模块.MySQL
+* @version 2.22
+* @author goseaside <goseaside@gmail.com>
+* @copyright Copyright &copy; 2005, goseaside
+
+* @var resource $iDBCon 保存数据库连接
+* @var array_of_resource $iDBRec 结果集的数组
+* @var float $ver 版本号
+* @var resource $iQueryID 查询 ID
+* @var resource $mb_OK 查询是否成功
+* @var resource $ms_err 查询错误描述
+* @var resource $dblist 数据库的数组
+* @var resource $CurDB 当前数据库名
+*/
+
+if(!detect_load_func('mysql_connect', 'php_mysql')) die('对不起，加载 mysql 模块失败！');
+
+class db_mysql{
+	var $iDBCon, $iDBRec = array();
+	var $ver = 2.22;	// @2004-06-23 08:07
+	var $iQueryID = 0;	// counter of query
+	var $mb_OK, $ms_err;
+	var $dblist, $CurDB;
+	
+	/**
+	* 建立数据库连接
+	* @param string $vSvrName database server name/ip
+	* @param string $vUsrName access user name
+	* @param string $vPassWD  password
+	* @param string $vDBName  database
+	
+	* @return void
+	* <code>
+	* <?
+	* $oDB->open('127.0.0.1', 'root', '', 'test');
+	* ?>
+	* </code>
+	*/
+	function open($vSvrName, $vUsrName, $vPassWD, $vDBName){
+		/**
+		* @global string $db_notexists pre-defined string for db-not-exists error
+		* @global string $def_db_notexists default pre-defined string for db-not-exists error
+		*/
+		global $db_notexists, $def_db_notexists;
+		if($vSvrName)
+		{
+		    $this->iDBCon=@ mysql_pconnect($vSvrName, $vUsrName, $vPassWD);
+		}
+		else
+		{
+		    $this->iDBCon=@ mysql_pconnect();
+		}
+		
+		if(!$this->iDBCon){
+			DebugP1("Error in connecting server: $vSvrName", "D");
+			die((isset($db_notexists) && strlen($db_notexists)) ? $db_notexists : $def_db_notexists);
+			}
+		
+		if(!mysql_select_db($vDBName,$this->iDBCon)){
+			DebugP1("Error in open database: $vDBName", "D");
+			die("Error in open database.");
+			}
+		$this->dblist = array();
+		$this->CurDB = $vDBName;
+		}
+	// goseaside@2004-08-07 11:09
+	/**
+	* 压栈，切换到另外一个数据库
+	* @param string $vNewDB 切换到数据库
+	*/
+	function pushdb($vNewDB)
+	{
+		DebugP1("Push database: $vNewDB", "D");
+		if(!mysql_select_db($vNewDB,$this->iDBCon)){
+			DebugP1("Error in open database: $vNewDB", "D");
+			return false;
+			}
+		array_push($this->dblist, $this->CurDB);
+		$this->CurDB = $vNewDB;
+		return true;
+	}
+	/*
+	* 弹栈，返回到上个操作的数据库
+	*/
+	function popdb()
+	{
+		if(!sizeof($this->dblist)) return false;
+		$oldDB = array_pop($this->dblist);
+		DebugP1("pop database: $oldDB", "D");
+		if(!mysql_select_db($oldDB,$this->iDBCon)){
+			DebugP1("Error in open database: $oldDB", "D");
+			return false;
+			}
+		$this->CurDB = $oldDB;
+		return true;
+	}
+	/**
+	* 执行查询，对于不返回值的查询已优化
+	* @param string $vQuery 查询语句
+	* @param string $vLimit LIMIT 数/MySQL 优化参数
+	* @param string $vStart START 数/MySQL 优化参数
+	
+	* @return resource 结果集 ID
+	* <code>
+	* <?
+	* $q_id = $oDB->query("SELECT * FROM my_datas WHERE id=1");
+	* ?>
+	* </code>
+	*/
+	function query($vQuery, $vLimit = 0, $vStart = 0)
+	{
+		$this->iQueryID++;
+		// BOM::query limit
+		// goseaside@2004-06-23 07:37
+		DebugP1("Mysql query param: $vStart, $vLimit", "D");
+		$sql1 = trim($vQuery);
+		
+		$f_name = preg_match("/^(SELECT|SHOW|EXPLAIN|DESCRIBE|DESC)\s/i", $sql1) ? 'mysql_query' : 'mysql_unbuffered_query';
+		
+		if(preg_match("/^SELECT\s/i", $sql1) && $vLimit > 0){
+			if($vStart > 0) $sql1 .= " LIMIT $vStart, $vLimit";
+			else $sql1 .= " LIMIT $vLimit";
+		}
+		
+		DebugP1("Query function: $f_name", "D");
+		DebugP1("Query string: $sql1", "D");
+		
+		if(!($this->iDBRec[$this->iQueryID] = $f_name($sql1, $this->iDBCon))){
+			$this->mb_OK = false;
+			$this->ms_err = mysql_error();
+			
+			// goseaside@2006-05-24 16:51
+			DebugP1("<span style='color:red'>Error in query: <br>\n$sql1</span>", "D");
+			DebugP1("Detail:<br>\n".$this->ms_err."<br>\n", "D");
+			}
+		else {
+			$this->mb_OK = true;
+			} 
+		return $this->iQueryID;
+	}
+	
+	// 2003-08-05 11:42
+	/**
+	* 执行插入查询，返回插入项的 ID 值
+	* @param string $vQuery 查询语句
+	
+	* @return int 记录的 ID 值
+	* <code>
+	* <?
+	* $theid = $oDB->idinsert("INSERT INTO datas(name) VALUES('liudm')");
+	* ?>
+	* </code>
+	*/
+	function idinsert($vQuery)
+	{
+		$this->query($vQuery);
+		if($this->mb_OK){
+			return mysql_insert_id();
+			}
+		else return -1;
+	}
+	/**
+	* 获取更新的记录数
+	* @param resource $vQueryID 查询 ID，默认为上次执行的查询
+	
+	* @return int 记录数
+	* <code>
+	* <?
+	* $records = $oDB->affected();
+	* ?>
+	* </code>
+	*/
+	function affected(){
+		return mysql_affected_rows($this->iDBCon);
+		}
+	/**
+	* 获取结果集的列数
+	* @param resource $vQueryID 查询 ID，默认为上次执行的查询
+	
+	* @return int 记录数
+	* <code>
+	* <?
+	* $fields = $oDB->fields();
+	* ?>
+	* </code>
+	*/
+	function fields($vQueryID=0){
+		$TheQueryID=$vQueryID;
+		if($vQueryID==0)$TheQueryID=$this->iQueryID;
+		return mysql_num_fields($this->iDBRec[$TheQueryID]);
+		}
+	/**
+	* 获取结果集的行数
+	* @param resource $vQueryID 查询 ID，默认为上次执行的查询
+	
+	* @return int 记录数
+	* <code>
+	* <?
+	* $rows_count = $oDB->rows();
+	* ?>
+	* </code>
+	*/
+	function rows($vQueryID=0)
+	{
+		$TheQueryID=$vQueryID;
+		if($vQueryID==0)$TheQueryID=$this->iQueryID;
+		return mysql_num_rows($this->iDBRec[$TheQueryID]);
+	}
+	
+	/**
+	* 定位到结果集的记录位置
+	* @param int $vPosition 位置
+	* @param resource $vQueryID 查询 ID，默认为上次执行的查询
+	
+	* @return int 记录数
+	* <code>
+	* <?
+	* $oDB->seek(200[, $q_id]);
+	* ?>
+	* </code>
+	*/
+	function seek($vPosition,$vQueryID=0)
+	{
+		$TheQueryID=$vQueryID;
+		if($vQueryID==0)$TheQueryID=$this->iQueryID;
+		return @mysql_data_seek($this->iDBRec[$TheQueryID],$vPosition);
+	}
+	
+	function get_all($sql)
+	{
+		$r = $this->query($sql);
+		if(!$r) return false;
+		
+		$arr_data = array();
+		while($row = $this->next_record()) $arr_data[] = $row;
+		
+		return $arr_data;
+	}
+	
+	/**
+	* 取得结果集的下一条记录
+	* @param resource $vQueryID 查询 ID，默认为上次执行的查询
+	
+	* @return void
+	* <code>
+	* <?
+	* $row1 = $oDB->next_record();
+	* ?>
+	* </code>
+	*/
+	// goseaside@2007-04-21 14:43
+	function next_record($vQueryID=0, $vFetchType = MYSQL_BOTH)
+	{
+		$TheQueryID=$vQueryID;
+		if($vQueryID==0)$TheQueryID=$this->iQueryID;
+		return mysql_fetch_array($this->iDBRec[$TheQueryID], $vFetchType);
+	}
+	/**
+	* 查询并返回第一条记录的第一列，一般用于计数
+	* @param string $vQuery 查询语句
+	
+	* <code>
+	* <?
+	* $data1 = $oDB->querycount("SELECT COUNT(*) FROM mydata");
+	* ?>
+	* </code>
+	*/
+	function queryone($vQuery){
+		$this->query($vQuery);
+		if($therow=$this->next_record()){
+			$i=$therow[0];
+			$this->free();
+			return $i;
+		}
+		else return false;
+	}
+	
+	function querycount($vQuery)
+	{
+		return $this->queryone($vQuery);
+	}
+	
+	/**
+	* 释放当前记录集
+	*/
+	function free($vQueryID=0)
+	{
+		$TheQueryID=$vQueryID;
+		if($vQueryID==0) $TheQueryID=$this->iQueryID;
+		$this->iQueryID --; // bug fix@2005-05-22 17:44
+		return mysql_free_result($this->iDBRec[$TheQueryID]);
+	}
+	
+	/**
+	* 关闭数据库连接
+	*/
+	function close()
+	{
+		mysql_close($this->iDBCon);
+	}
+	/**
+	* 释放所有记录集
+	*/
+	function freeall()
+	{
+		for($i=$this->iQueryID;$i>0;) @mysql_free_result($this->iDBRec[$i--]);
+	}
+}

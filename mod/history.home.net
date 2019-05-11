@@ -1,0 +1,11 @@
+<?php
+EnableDebugMode(false);	//
+
+$arr_SQL_LIST['sql_80000'] = "SELECT * FROM call_log order by id desc";
+
+if(!empty($_REQUEST['s']))
+{
+	// search
+	$s = addslashes(trim($_REQUEST['s']));
+	$arr_SQL_LIST['sql_80000'] = "SELECT * FROM call_log WHERE num_str LIKE '%$s%' ORDER BY id desc";
+}

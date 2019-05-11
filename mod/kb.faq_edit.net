@@ -1,0 +1,6 @@
+<?php
+EnableDebugMode(false);	//
+
+$id = empty($_REQUEST['id']) ? 0 : intval($_REQUEST['id']);
+
+$arr_SQL_LIST['sql_80010'] = "SELECT * FROM faq_list WHERE id=$id";

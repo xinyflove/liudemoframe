@@ -1,0 +1,16 @@
+<?php
+//EnableDebugMode(false);	//
+
+$online = 1;
+
+$fn_status = "flags/sys_status";
+$sys_status = is_file($fn_status) ? file_get_contents($fn_status) : 'green';
+
+$f_g_run = file_exists('flags/flag.global_run');
+$f_status_run = file_exists('flags/flag.run');
+
+$fn_line1 = "flags/1.status";
+$s_line1  = file_exists($fn_line1) ? file_get_contents($fn_line1) : '';
+if(empty($s_line1)) $s_line1 = '...';
+
+die( json_encode( array( $online, $sys_status, $f_g_run, $f_status_run, trim($s_line1)  ) ) );
