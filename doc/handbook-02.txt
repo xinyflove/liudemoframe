@@ -1,0 +1,74 @@
+
+不使用 ORM 方法，可以选择自己写 sql 或者辅助生成。
+
+
+辅助生成 sql 类
+================================
+
+使用举例
+
+$o=new sql_ass('user_list');  // 数据表的名字作为参数
+
+
+$o->pair('age', 123);
+//$o->pair('sex', USER_SEX_MALE);
+$o->pair('city', 'beijing');
+
+// OR
+$o->autopairs('age,sex,city');
+// 相当于这个
+$o->autopairs('age,sex,city', $_REQUEST);
+
+
+
+$sql = $o->getinsert();
+
+
+// 设置条件
+$o->where('id', 2);
+// 相当于
+$o->where('id = 2');
+
+$sql = $o->getupdate();
+
+$sql = $o->getdelete();
+
+
+【特别提醒】
+插入数据操作，含有自增字段 id 的时候，务必使用 getinsert 方法，
+并且不要传递 id 字段进去。
+
+这样的话，可以兼容 mysql 和 oracle。
+
+
+
+数据库操作方法
+================================
+
+OpenMyDB(  );   //打开数据库
+OpenMyDB( DATABASE_DB );   //等同于
+
+
+$arr_data = mydb_get_all($sql);
+
+$user_info = mydb_get_one($sql_one_user);
+
+$user_num = mydb_get_one_field("select count(*) from user_list");
+
+$arr_user_name = mydb_get_one_as_array("select nm from user_list order by nm");
+
+mydb_query($sql);   // execute
+
+$new_id = mydb_id_insert($sql_insert);
+
+$c_update = mydb_affected();
+
+
+// 自己控制分页数据情况
+$sql = "select * from user where ... order by ...";
+$page = 3;
+
+mydb_page_control( $sql, $page, $page_size = -1 );
+$arr_paged_data = mydb_get_all($sql, true);
+
+

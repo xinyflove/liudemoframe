@@ -1,0 +1,86 @@
+
+数据块
+================================
+
+每个前端展示的数据块，都有编号，可以统一写到列表里面。
+
+81000   user_list{ id, nm, age, sex, city}
+81010   school_list{id, nm, address}
+
+
+数据块的准备分两种情况：
+
+* 直接传递 sql 语句，需要的时候自动执行
+  $arr_SQL_LIST['sql_80000'] = "SELECT * FROM user_list ORDER BY id";
+
+* 传递数组，查询出来的数组
+  $arr_data = mydb_get_all($sql); 
+
+  $arr_SQL_LIST['sql_80000'] = $arr_data;
+
+
+
+
+前端的数据块内部，通过 [.age] 的形式引用，
+
+数据块之间可以嵌套，
+遇到混淆不清的地方可以这样写： [.age@80000]
+
+
+例如，下面这个 80000 的数据块：
+
+    <!-- UseTemplete@80000 pagesize=10 param= -->
+	<tr id="line_[.id]" onmouseover="style.backgroundColor='#FF9900'" onmouseout="style.backgroundColor='#FFFFFF'">
+		<td>[.id]</td>
+		<td>[.num_str]</td>
+		<td align="right">[.num_fee]</td>
+
+		<td><span id="c_status_[.id]" class="check_[.status_last]"></span>
+			<span class="show_[.status_last]"> / [.status_last_str]</span>
+		</td>
+		<td><script>conv_time([.time_last]);</script></td>
+
+		<td align="center">[.time_called]</td>
+
+		<td> 
+			<span id="do_k_[.id]">
+				<span onclick="javascript:item_refresh([.id])" class="line_k btn btn-primary reload_[.f_check] go_[.f_going]">缴费完成</span>
+
+
+				&nbsp; &nbsp; 
+
+				<span onclick="javascript:item_k([.id])" class="line_k btn btn-danger">删除</span>
+			</span>
+			
+			<button onclick="javascript:undo_k([.id])" class="line_k hide" id="undo_k_[.id]">撤销删除</button>
+			
+		</td>
+	</tr>
+	<!-- Wrap@80000 -->
+	<!-- Fill@80000 -->
+	<!-- Null@80000 -->
+	
+	<!-- UseTemplete@80000; -->
+
+
+可以看出，一些转换操作是在前端通过 js 进行的。
+
+模板里面【永远没有 php 代码】，才能保证安全。
+
+
+
+* 可以引用 request 传递的参数，通过 感叹号 使用
+例如
+hello, [!cat_id]
+
+
+
+* 程序里面可以传递变量进来，通过 @ 标记使用
+
+// php
+set_ui_var('u_name', 'zhangsan');
+
+<!-- html -->
+hello, [@u_name]
+
+

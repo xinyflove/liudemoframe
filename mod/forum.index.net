@@ -1,0 +1,4 @@
+<?php
+EnableDebugMode(false);	//
+
+$arr_SQL_LIST['sql_100000'] = "SELECT * FROM call_out.forum";

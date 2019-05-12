@@ -1,0 +1,16 @@
+<?php
+EnableDebugMode(false);	//
+
+$nickname = $_POST['nickname'];
+$email = $_POST['email'];
+$content = $_POST['content'];
+$created_time = strtotime('now');
+$sql = "INSERT INTO forum (nickname,email,content,created_time) VALUES ('{$nickname}','{$email}','{$content}','{$created_time}')";
+
+$id = mydb_query($sql);
+$output = array('status'=>false, 'msg'=>'添加失败');
+if($id)
+{
+    $output = array('status'=>true, 'msg'=>'添加成功');
+}
+echo json_encode($output);
