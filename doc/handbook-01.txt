@@ -1,0 +1,34 @@
+图层切换，尽量通过css/js控制元素的显示/隐藏问题，
+不要依赖模版标签的逻辑处理。
+
+smarty 传染下来的，模版的逻辑处理支持或者后端代码跑到前端运行，是错误的做法。
+
+sex:<span class="show_sex_.[.sex]"></span>
+<textarea id="msg_body" class="hide"></textarea>
+<div id="show_large hide">
+</div>
+
+<script>
+
+function document_on_ready()
+{
+	if($("#msg_body").val().length > 2000) $('#show_large').show();
+	
+	$('.show_sex_0').html('female);
+	$('.show_sex_1').html('male);
+}
+
+</script>
+
+---------------------------------------------------
+
+tips:
+
+autopairs
+函数支持 改名 与 函数，
+
+例如
+autopairs('a>new_a,age|intval>age2')
+
+大于号左边是传递进来的下标（名称），
+经过 管道（函数）处理后，到达右边
